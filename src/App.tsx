@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   type Book, type Data, type Run, HALF_KM, OPENING_DAY, RACE_DAY,
-  addDays, dailyActivity, daysBetween, fmtDate, pace, readingStats, seasonWeeks, today, trainingPhases, weekStart, weeklyTotals,
+  dailyActivity, daysBetween, fmtDate, pace, readingStats, seasonWeeks, today, trainingPhases, weekStart, weeklyTotals,
 } from './model'
 import { Admin } from './Admin'
 import { ActivityStrip, SeasonGrid, Spark } from './Momentum'
@@ -36,6 +36,7 @@ export default function App() {
         <nav aria-label="Sections">
           <a href="#kr1">Half marathon</a>
           <a href="#kr2">Book list</a>
+          <a href="#season">The record</a>
           {editing ? <a className="nav-cta" href="#">Done editing</a> : null}
         </nav>
       </header>
@@ -76,6 +77,12 @@ function Report({ data }: { data: Data }) {
   const days = dailyActivity(data, 28, now)
   const weeks = weeklyTotals(data, 8, now)
   const range = `the last 8 weeks, from the week of ${fmtDate(weeks[0].start)}`
+  const activePhase = trainingPhases(runs, now).find((p) => p.active)
+  const kr1Status = raceRun
+    ? 'Race run. Results are in the log below.'
+    : activePhase
+      ? `Now: ${activePhase.plan.charAt(0).toLowerCase() + activePhase.plan.slice(1)}. ${activePhase.status}.`
+      : 'Race week.'
 
   return (
     <>
@@ -84,7 +91,7 @@ function Report({ data }: { data: Data }) {
           <p className="eyebrow">FY2027 roadmap</p>
           <h1>Improve long-term health and performance.</h1>
           <p className="hero-tagline">
-            Two key results, a limited budget, and stakeholders with a history of changing requirements. Shareholders asked for public accountability, so here are the numbers, including where we fall short.
+            Shareholders asked for public accountability. Here’s how it’s going, including where I fall short.
           </p>
         </div>
         <aside className="hero-aside" aria-label="Countdowns">
@@ -100,16 +107,36 @@ function Report({ data }: { data: Data }) {
         </aside>
       </section>
 
-      <section className="metrics" aria-label="Key numbers">
-        <Metric value={raceRun ? 'Done' : `${longest.toFixed(1)}`} unit={raceRun ? '' : 'km'} label={raceRun ? `Finished the half in ${Math.floor(raceRun.minutes / 60)}:${String(Math.round(raceRun.minutes % 60)).padStart(2, '0')}` : `longest run, of ${HALF_KM} on race day`} />
-        <Metric value={String(thisWeek.length)} label={`runs this week, ${thisWeek.reduce((s, r) => s + r.km, 0).toFixed(1)} km`}
-          spark={<Spark values={weeks.map((w) => w.runs)} target={5} label={`Runs per week over ${range}. Dashed line: the plan's 5 a week.`} />} />
-        <Metric value={totalKm.toFixed(0)} unit="km" label={`run since the post, across ${runs.length} run${runs.length === 1 ? '' : 's'}`}
-          spark={<Spark values={weeks.map((w) => w.km)} label={`Kilometres per week over ${range}: ${weeks.map((w) => w.km.toFixed(0)).join(', ')}`} />} />
-        <Metric value={`${reading.finished}`} unit="/ 12" label="books finished" />
-        <Metric value={`${Math.round((reading.read / reading.total) * 100)}`} unit="%" label={`of ${reading.total.toLocaleString('en-CA')} pages read`}
-          spark={<Spark values={weeks.map((w) => w.pages)} target={reading.needPerDay * 7} label={`Pages per week over ${range}. Dashed line: the weekly pace needed.`} />} />
-        <Metric value={reading.needPerDay.toFixed(0)} label={`pages a day needed to finish by Opening Day`} />
+      <section className="scorecard" aria-label="Scorecard">
+        <div className="kr-group">
+          <div className="kr-head">
+            <p className="kicker">KR1</p>
+            <h2 className="kr-title">Half marathon</h2>
+            <p className="kr-status">{kr1Status}</p>
+            <a className="kr-link" href="#kr1">Training plan and run log</a>
+          </div>
+          <div className="kr-tiles">
+            <Metric value={raceRun ? 'Done' : `${longest.toFixed(1)}`} unit={raceRun ? '' : 'km'} label={raceRun ? `Finished in ${Math.floor(raceRun.minutes / 60)}:${String(Math.round(raceRun.minutes % 60)).padStart(2, '0')}` : `longest run, of ${HALF_KM} km on race day`} />
+            <Metric value={String(thisWeek.length)} label={`runs this week (${thisWeek.reduce((s, r) => s + r.km, 0).toFixed(1)} km)`}
+              spark={<Spark values={weeks.map((w) => w.runs)} target={5} label={`Runs per week over ${range}. Dashed line: the plan's 5 a week.`} />} />
+            <Metric value={totalKm.toFixed(0)} unit="km" label="run since the post"
+              spark={<Spark values={weeks.map((w) => w.km)} label={`Kilometres per week over ${range}: ${weeks.map((w) => w.km.toFixed(0)).join(', ')}`} />} />
+          </div>
+        </div>
+        <div className="kr-group">
+          <div className="kr-head">
+            <p className="kicker">KR2</p>
+            <h2 className="kr-title">Book list</h2>
+            <p className="kr-status">{readingSummary(reading)}</p>
+            <a className="kr-link" href="#kr2">All 12 books</a>
+          </div>
+          <div className="kr-tiles">
+            <Metric value={`${reading.finished}`} unit="/ 12" label="books finished" />
+            <Metric value={`${Math.round((reading.read / reading.total) * 100)}`} unit="%" label={`of ${reading.total.toLocaleString('en-CA')} pages read`}
+              spark={<Spark values={weeks.map((w) => w.pages)} target={reading.needPerDay * 7} label={`Pages per week over ${range}. Dashed line: the weekly pace needed.`} />} />
+            <Metric value={String(Math.ceil(reading.needPerDay))} label="pages a day needed by Opening Day" />
+          </div>
+        </div>
       </section>
 
       <KR1 runs={runs} now={now} longest={longest} />
@@ -131,16 +158,9 @@ function Metric({ value, unit, label, spark }: { value: string; unit?: string; l
 
 function KR1({ runs, now, longest }: { runs: Run[]; now: string; longest: number }) {
   const phases = trainingPhases(runs, now)
-  const active = phases.find((p) => p.active)
-
-  // Last 12 weeks of runs, oldest first
-  const weeks = Array.from({ length: 12 }, (_, i) => addDays(weekStart(now), -7 * (11 - i)))
-  const perWeek = weeks.map((w) => {
-    const rs = runs.filter((r) => r.date >= w && r.date <= addDays(w, 6))
-    return { w, count: rs.length, km: rs.reduce((s, r) => s + r.km, 0) }
-  })
-  const [sel, setSel] = useState<number | null>(null)
-  const maxCount = Math.max(5, ...perWeek.map((p) => p.count))
+  const [showAll, setShowAll] = useState(false)
+  const LOG_LIMIT = 8
+  const shown = showAll ? runs : runs.slice(0, LOG_LIMIT)
 
   const summary = runs.length === 0
     ? 'No runs logged yet. The December phase is about getting to 30 minutes without stopping.'
@@ -169,45 +189,13 @@ function KR1({ runs, now, longest }: { runs: Run[]; now: string; longest: number
         ))}
       </ol>
 
-      <div className="chart-block">
-        <div className="chart-head">
-          <h3>Runs per week</h3>
-          <p>The last 12 weeks. The dashed line is the plan’s 5 runs a week{active?.key === 'p1' ? ', which starts in January' : ''}.</p>
-        </div>
-        <svg className="weeks" viewBox="0 0 600 170" role="img" aria-label="Runs per week, last 12 weeks">
-          {[0, 5].map((v) => (
-            <g key={v}>
-              <line className={v ? 'target' : 'base'} x1="34" x2="596" y1={150 - (v / maxCount) * 130} y2={150 - (v / maxCount) * 130} />
-              <text x="26" y={150 - (v / maxCount) * 130} dy="0.32em" textAnchor="end">{v}</text>
-            </g>
-          ))}
-          {perWeek.map((p, i) => {
-            const slot = 562 / 12
-            const x = 34 + i * slot + slot * 0.18
-            const h = (p.count / maxCount) * 130
-            return (
-              <g key={p.w} onClick={() => setSel(sel === i ? null : i)} onMouseEnter={() => setSel(i)}>
-                <rect className="hit" x={34 + i * slot} y="10" width={slot} height="150" />
-                {p.count > 0 && <path className={`wbar ${sel !== null && sel !== i ? 'dim' : ''}`} d={`M${x},150V${150 - h + 4}Q${x},${150 - h} ${x + 4},${150 - h}H${x + slot * 0.64 - 4}Q${x + slot * 0.64},${150 - h} ${x + slot * 0.64},${150 - h + 4}V150Z`} />}
-                {(i % 3 === 2 || i === 11) && <text x={34 + i * slot + slot / 2} y="166" textAnchor="middle">{fmtDate(p.w)}</text>}
-              </g>
-            )
-          })}
-        </svg>
-        <p className="chart-tip">
-          {sel !== null
-            ? `Week of ${fmtDate(perWeek[sel].w)}: ${perWeek[sel].count} run${perWeek[sel].count === 1 ? '' : 's'}, ${perWeek[sel].km.toFixed(1)} km`
-            : 'Tap a week for details.'}
-        </p>
-      </div>
-
       <div className="log">
-        <h3>Run log</h3>
+        <h3>Run log{runs.length > 0 && <span className="log-count"> {runs.length} run{runs.length === 1 ? '' : 's'}</span>}</h3>
         {runs.length ? (
           <table>
             <thead><tr><th>Date</th><th className="num">Distance</th><th className="num">Time</th><th className="num hide-s">Pace</th><th className="hide-s">Where</th></tr></thead>
             <tbody>
-              {runs.map((r) => (
+              {shown.map((r) => (
                 <tr key={r.id}>
                   <td>{fmtDate(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}{r.note && <span className="note">{r.note}</span>}</td>
                   <td className="num">{r.km.toFixed(1)} km</td>
@@ -221,18 +209,27 @@ function KR1({ runs, now, longest }: { runs: Run[]; now: string; longest: number
         ) : (
           <p className="muted">First run incoming. Check back soon.</p>
         )}
+        {runs.length > LOG_LIMIT && (
+          <button type="button" className="button secondary small log-more" onClick={() => setShowAll(!showAll)}>
+            {showAll ? 'Show recent runs only' : `Show all ${runs.length} runs`}
+          </button>
+        )}
       </div>
     </section>
   )
 }
 
-function KR2({ books, stats }: { books: Book[]; stats: ReturnType<typeof readingStats> }) {
+function readingSummary(stats: ReturnType<typeof readingStats>) {
   const onPace = stats.actualPerDay >= stats.needPerDay
-  const summary = stats.read === 0
-    ? `Nothing read yet. Finishing on time means about ${Math.ceil(stats.needPerDay)} pages a day until Opening Day.`
-    : stats.daysIn < 7
-      ? `${stats.read.toLocaleString('en-CA')} pages read so far. Finishing on time means about ${Math.ceil(stats.needPerDay)} pages a day until Opening Day.`
-      : `Reading ${stats.actualPerDay.toFixed(0)} pages a day against the ${stats.needPerDay.toFixed(0)} needed. ${onPace ? 'On pace.' : 'Behind pace.'}`
+  if (stats.read === 0) return `Nothing read yet. Finishing on time means about ${Math.ceil(stats.needPerDay)} pages a day until Opening Day.`
+  if (stats.daysIn < 7) return `${stats.read.toLocaleString('en-CA')} pages read so far. Finishing on time means about ${Math.ceil(stats.needPerDay)} pages a day until Opening Day.`
+  return `Reading ${stats.actualPerDay.toFixed(0)} pages a day against the ${stats.needPerDay.toFixed(0)} needed. ${onPace ? 'On pace.' : 'Behind pace.'}`
+}
+
+function KR2({ books, stats }: { books: Book[]; stats: ReturnType<typeof readingStats> }) {
+  const summary = readingSummary(stats)
+  const rank = (b: Book) => (b.page > 0 && b.page < b.pages ? 0 : b.page >= b.pages ? 1 : 2)
+  const ordered = [...books].sort((a, b) => rank(a) - rank(b) || a.id - b.id)
   return (
     <section className="section" id="kr2">
       <div className="section-heading">
@@ -241,7 +238,7 @@ function KR2({ books, stats }: { books: Book[]; stats: ReturnType<typeof reading
         <p>{summary}</p>
       </div>
       <ol className="books">
-        {books.map((b) => {
+        {ordered.map((b) => {
           const p = Math.min(1, b.page / b.pages)
           return (
             <li key={b.id} className={`book ${p >= 1 ? 'finished' : p > 0 ? 'reading' : ''}`}>
@@ -252,7 +249,7 @@ function KR2({ books, stats }: { books: Book[]; stats: ReturnType<typeof reading
               </span>
               <span className="book-progress">
                 <span className="bar" role="img" aria-label={`${Math.round(p * 100)}% read`}><span style={{ width: `${p * 100}%` }} /></span>
-                <span className="book-state">{p >= 1 ? 'Finished' : p > 0 ? `Page ${b.page} of ${b.pages}` : 'Not started'}</span>
+                <span className="book-state">{p >= 1 ? 'Finished' : p > 0 ? `Reading now, page ${b.page} of ${b.pages}` : 'Not started'}</span>
               </span>
             </li>
           )
