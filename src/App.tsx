@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   type Book, type Data, type Run, HALF_KM, OPENING_DAY, RACE_DAY,
-  addDays, daysBetween, fmtDate, pace, readingStats, today, trainingPhases, weekStart,
+  addDays, dailyActivity, daysBetween, fmtDate, pace, readingStats, today, trainingPhases, weekStart, weeklyTotals,
 } from './model'
 import { Admin } from './Admin'
+import { ActivityStrip, Spark } from './Momentum'
 
 function useHash() {
   const [hash, setHash] = useState(location.hash)
@@ -72,6 +73,9 @@ function Report({ data }: { data: Data }) {
   const totalKm = runs.reduce((s, r) => s + r.km, 0)
   const reading = readingStats(data.books, data.startDate, now)
   const raceRun = runs.find((r) => r.where === 'race')
+  const days = dailyActivity(data, 28, now)
+  const weeks = weeklyTotals(data, 8, now)
+  const range = `the last 8 weeks, from the week of ${fmtDate(weeks[0].start)}`
 
   return (
     <>
@@ -92,15 +96,19 @@ function Report({ data }: { data: Data }) {
             <strong>{toOpener}</strong>
             <span>days to Opening Day<br /><em>Jays at Yankees, {fmtDate(OPENING_DAY, { weekday: 'short', month: 'short', day: 'numeric' })}</em></span>
           </div>
+          <ActivityStrip days={days} />
         </aside>
       </section>
 
       <section className="metrics" aria-label="Key numbers">
         <Metric value={raceRun ? 'Done' : `${longest.toFixed(1)}`} unit={raceRun ? '' : 'km'} label={raceRun ? `Finished the half in ${Math.floor(raceRun.minutes / 60)}:${String(Math.round(raceRun.minutes % 60)).padStart(2, '0')}` : `longest run, of ${HALF_KM} on race day`} />
-        <Metric value={String(thisWeek.length)} label={`runs this week, ${thisWeek.reduce((s, r) => s + r.km, 0).toFixed(1)} km`} />
-        <Metric value={totalKm.toFixed(0)} unit="km" label={`run since the post, across ${runs.length} run${runs.length === 1 ? '' : 's'}`} />
+        <Metric value={String(thisWeek.length)} label={`runs this week, ${thisWeek.reduce((s, r) => s + r.km, 0).toFixed(1)} km`}
+          spark={<Spark values={weeks.map((w) => w.runs)} target={5} label={`Runs per week over ${range}. Dashed line: the plan's 5 a week.`} />} />
+        <Metric value={totalKm.toFixed(0)} unit="km" label={`run since the post, across ${runs.length} run${runs.length === 1 ? '' : 's'}`}
+          spark={<Spark values={weeks.map((w) => w.km)} label={`Kilometres per week over ${range}: ${weeks.map((w) => w.km.toFixed(0)).join(', ')}`} />} />
         <Metric value={`${reading.finished}`} unit="/ 12" label="books finished" />
-        <Metric value={`${Math.round((reading.read / reading.total) * 100)}`} unit="%" label={`of ${reading.total.toLocaleString('en-CA')} pages read`} />
+        <Metric value={`${Math.round((reading.read / reading.total) * 100)}`} unit="%" label={`of ${reading.total.toLocaleString('en-CA')} pages read`}
+          spark={<Spark values={weeks.map((w) => w.pages)} target={reading.needPerDay * 7} label={`Pages per week over ${range}. Dashed line: the weekly pace needed.`} />} />
         <Metric value={reading.needPerDay.toFixed(0)} label={`pages a day needed to finish by Opening Day`} />
       </section>
 
@@ -110,11 +118,12 @@ function Report({ data }: { data: Data }) {
   )
 }
 
-function Metric({ value, unit, label }: { value: string; unit?: string; label: string }) {
+function Metric({ value, unit, label, spark }: { value: string; unit?: string; label: string; spark?: ReactNode }) {
   return (
     <div className="metric">
       <strong>{value}{unit && <small> {unit}</small>}</strong>
       <span>{label}</span>
+      {spark && <div className="metric-spark">{spark}<span className="spark-note">Last 8 weeks</span></div>}
     </div>
   )
 }

@@ -14,7 +14,7 @@
     {
       "id": 1,
       "title": "When We Cease to Understand the World",
-      "author": "Benjamín Labatut",
+      "author": "Benjam\u00edn Labatut",
       "pages": 192,
       "page": 61
     },
@@ -94,6 +94,43 @@
       "author": "Robert K. Fitts",
       "pages": 300,
       "page": 300
+    }
+  ],
+  "reading": [
+    {
+      "date": "2026-11-10",
+      "bookId": 12,
+      "pages": 60
+    },
+    {
+      "date": "2026-11-11",
+      "bookId": 12,
+      "pages": 60
+    },
+    {
+      "date": "2026-11-12",
+      "bookId": 12,
+      "pages": 60
+    },
+    {
+      "date": "2026-11-15",
+      "bookId": 12,
+      "pages": 60
+    },
+    {
+      "date": "2026-11-16",
+      "bookId": 12,
+      "pages": 60
+    },
+    {
+      "date": "2026-11-16",
+      "bookId": 1,
+      "pages": 30
+    },
+    {
+      "date": "2026-11-17",
+      "bookId": 1,
+      "pages": 30
     }
   ]
 }

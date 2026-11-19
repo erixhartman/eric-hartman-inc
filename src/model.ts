@@ -15,11 +15,19 @@ export interface Book {
   page: number
 }
 
+/** One reading session: pages read in a book on a day. Logged on each save so progress has a history. */
+export interface ReadingEntry {
+  date: string
+  bookId: number
+  pages: number
+}
+
 export interface Data {
   updatedAt: string
   startDate: string
   runs: Run[]
   books: Book[]
+  reading?: ReadingEntry[]
 }
 
 export const RACE_DAY = '2027-05-02' // Toronto Marathon (half), Sunday May 2, 2027
@@ -113,4 +121,46 @@ export function readingStats(books: Book[], startDate: string, now = today()) {
   const needPerDay = daysLeft ? (total - read) / daysLeft : 0
   const actualPerDay = read / daysIn
   return { total, read, finished, daysLeft, needPerDay, actualPerDay, daysIn }
+}
+
+// ---------- momentum ----------
+export interface Day {
+  date: string
+  km: number
+  pages: number
+}
+
+export function dailyActivity(data: Data, days: number, now = today()): Day[] {
+  const out: Day[] = []
+  for (let i = days - 1; i >= 0; i--) {
+    const date = addDays(now, -i)
+    out.push({
+      date,
+      km: data.runs.filter((r) => r.date === date).reduce((s, r) => s + r.km, 0),
+      pages: (data.reading ?? []).filter((e) => e.date === date).reduce((s, e) => s + e.pages, 0),
+    })
+  }
+  return out
+}
+
+export interface Week {
+  start: string
+  runs: number
+  km: number
+  pages: number
+}
+
+export function weeklyTotals(data: Data, weeks: number, now = today()): Week[] {
+  const thisWeek = weekStart(now)
+  return Array.from({ length: weeks }, (_, i) => {
+    const start = addDays(thisWeek, -7 * (weeks - 1 - i))
+    const end = addDays(start, 6)
+    const rs = data.runs.filter((r) => r.date >= start && r.date <= end)
+    return {
+      start,
+      runs: rs.length,
+      km: rs.reduce((s, r) => s + r.km, 0),
+      pages: (data.reading ?? []).filter((e) => e.date >= start && e.date <= end).reduce((s, e) => s + e.pages, 0),
+    }
+  })
 }

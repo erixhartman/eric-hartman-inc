@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { type Data, type Run, fmtDate, today } from './model'
+import { type Data, type ReadingEntry, type Run, fmtDate, today } from './model'
 import { REPO, checkToken, loadFromGitHub, saveToGitHub, tokenStore } from './github'
 
 export function Admin({ data, onChange }: { data: Data; onChange: (d: Data) => void }) {
@@ -51,7 +51,7 @@ export function Admin({ data, onChange }: { data: Data; onChange: (d: Data) => v
       )}
       <div className="admin-grid">
         <LogRun busy={busy || !sha} onSave={(run) => commit({ ...data, runs: [...data.runs, run] }, `Log ${run.km} km run (${run.date})`)} />
-        <Books data={data} busy={busy || !sha} onSave={(books, msg) => commit({ ...data, books }, msg)} />
+        <Books data={data} busy={busy || !sha} onSave={(books, msg, sessions) => commit({ ...data, books, reading: [...(data.reading ?? []), ...sessions] }, msg)} />
       </div>
       {data.runs.length > 0 && (
         <details className="admin-runs">
@@ -141,12 +141,13 @@ function LogRun({ busy, onSave }: { busy: boolean; onSave: (r: Run) => Promise<b
   )
 }
 
-function Books({ data, busy, onSave }: { data: Data; busy: boolean; onSave: (books: Data['books'], msg: string) => Promise<boolean> }) {
+function Books({ data, busy, onSave }: { data: Data; busy: boolean; onSave: (books: Data['books'], msg: string, sessions: ReadingEntry[]) => Promise<boolean> }) {
   const [draft, setDraft] = useState(() => Object.fromEntries(data.books.map((b) => [b.id, { page: String(b.page), pages: String(b.pages) }])))
   useEffect(() => {
     setDraft(Object.fromEntries(data.books.map((b) => [b.id, { page: String(b.page), pages: String(b.pages) }])))
   }, [data.books])
 
+  const [readOn, setReadOn] = useState(today())
   const changed = data.books.filter((b) => String(b.page) !== draft[b.id]?.page || String(b.pages) !== draft[b.id]?.pages)
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -155,14 +156,19 @@ function Books({ data, busy, onSave }: { data: Data; busy: boolean; onSave: (boo
       const pages = Math.max(1, parseInt(d.pages) || b.pages)
       return { ...b, pages, page: Math.min(pages, Math.max(0, parseInt(d.page) || 0)) }
     })
+    // Log pages moved forward as a reading session on the chosen day, so the site can show momentum.
+    const sessions = books
+      .map((b) => ({ date: readOn, bookId: b.id, pages: b.page - (data.books.find((o) => o.id === b.id)?.page ?? 0) }))
+      .filter((s) => s.pages > 0)
     const first = books.find((b) => changed.some((c) => c.id === b.id))
     const msg = changed.length === 1 && first ? `Reading: ${first.title}, page ${first.page} of ${first.pages}` : `Reading update (${changed.length} books)`
-    await onSave(books, msg)
+    await onSave(books, msg, sessions)
   }
   return (
     <form className="panel" onSubmit={submit}>
       <h3>Reading progress</h3>
       <p className="muted small-text">Current page, and the page count of your edition (the defaults are estimates).</p>
+      <label className="read-on"><span>Read on</span><input type="date" value={readOn} max={today()} onChange={(e) => setReadOn(e.target.value)} /></label>
       <ol className="book-edit">
         {data.books.map((b) => (
           <li key={b.id}>
