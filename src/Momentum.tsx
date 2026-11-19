@@ -50,3 +50,49 @@ export function Spark({ values, target, label }: { values: number[]; target?: nu
     </svg>
   )
 }
+
+interface SeasonWeek {
+  start: string
+  days: (Day & { future: boolean })[]
+  km: number
+  pages: number
+  marks: string[]
+}
+
+/** The whole season, one row per week: runs on the left, reading on the right, totals at the end. */
+export function SeasonGrid({ weeks }: { weeks: SeasonWeek[] }) {
+  return (
+    <div className="season" role="table" aria-label="Activity by week, from the post to race day">
+      <div className="season-row season-head" role="row">
+        <span role="columnheader">Week of</span>
+        <span role="columnheader" className="season-lane-h">Runs</span>
+        <span role="columnheader" className="season-lane-h">Reading</span>
+        <span role="columnheader" className="season-tot">Total</span>
+      </div>
+      {weeks.map((w) => {
+        const future = w.days.every((d) => d.future)
+        return (
+          <div className={`season-row ${future ? 'is-future' : ''}`} role="row" key={w.start}>
+            <span className="season-week" role="cell">
+              {fmtDate(w.start)}
+              {w.marks.map((m) => <em key={m}>{m}</em>)}
+            </span>
+            <span className="season-cells" role="cell">
+              {w.days.map((d) => (
+                <span key={d.date} className={`sq ${d.future ? 'f' : `l${runLevel(d.km)}`}`} title={`${fmtDate(d.date, { weekday: 'short', month: 'short', day: 'numeric' })}: ${d.km ? `${d.km.toFixed(1)} km` : 'no run'}`} />
+              ))}
+            </span>
+            <span className="season-cells" role="cell">
+              {w.days.map((d) => (
+                <span key={d.date} className={`sq ${d.future ? 'f' : `l${readLevel(d.pages)}`}`} title={`${fmtDate(d.date, { weekday: 'short', month: 'short', day: 'numeric' })}: ${d.pages ? `${d.pages} pages` : 'no reading'}`} />
+              ))}
+            </span>
+            <span className="season-tot" role="cell">
+              {future ? '' : <>{w.km.toFixed(w.km >= 10 ? 0 : 1)} km<br />{w.pages} pages</>}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}

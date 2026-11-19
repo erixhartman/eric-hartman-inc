@@ -164,3 +164,38 @@ export function weeklyTotals(data: Data, weeks: number, now = today()): Week[] {
     }
   })
 }
+
+/** Every week from the week of the post to race week, with day-level activity and milestones. */
+export function seasonWeeks(data: Data, now = today()) {
+  // Start at whichever comes first: the post, or the earliest logged activity.
+  const earliest = [data.startDate, ...data.runs.map((r) => r.date), ...(data.reading ?? []).map((e) => e.date)].sort()[0]
+  const first = weekStart(earliest)
+  const last = weekStart(RACE_DAY)
+  const marks: Record<string, string> = {
+    [weekStart(data.startDate)]: 'Posted',
+    [weekStart(`${RACE_DAY.slice(0, 4)}-01-01`)]: 'Phase 2',
+    [weekStart(OPENING_DAY)]: 'Opening Day',
+    [weekStart(`${RACE_DAY.slice(0, 4)}-04-01`)]: 'Phase 3',
+    [last]: 'Race',
+  }
+  const weeks = []
+  for (let w = first; w <= last; w = addDays(w, 7)) {
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const date = addDays(w, i)
+      return {
+        date,
+        future: date > now,
+        km: data.runs.filter((r) => r.date === date).reduce((s, r) => s + r.km, 0),
+        pages: (data.reading ?? []).filter((e) => e.date === date).reduce((s, e) => s + e.pages, 0),
+      }
+    })
+    weeks.push({
+      start: w,
+      days,
+      km: days.reduce((s, d) => s + d.km, 0),
+      pages: days.reduce((s, d) => s + d.pages, 0),
+      marks: marks[w] ? [marks[w]] : [],
+    })
+  }
+  return weeks
+}

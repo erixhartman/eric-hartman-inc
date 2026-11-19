@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   type Book, type Data, type Run, HALF_KM, OPENING_DAY, RACE_DAY,
-  addDays, dailyActivity, daysBetween, fmtDate, pace, readingStats, today, trainingPhases, weekStart, weeklyTotals,
+  addDays, dailyActivity, daysBetween, fmtDate, pace, readingStats, seasonWeeks, today, trainingPhases, weekStart, weeklyTotals,
 } from './model'
 import { Admin } from './Admin'
-import { ActivityStrip, Spark } from './Momentum'
+import { ActivityStrip, SeasonGrid, Spark } from './Momentum'
 
 function useHash() {
   const [hash, setHash] = useState(location.hash)
@@ -114,6 +114,7 @@ function Report({ data }: { data: Data }) {
 
       <KR1 runs={runs} now={now} longest={longest} />
       <KR2 books={data.books} stats={reading} />
+      <Season data={data} now={now} />
     </>
   )
 }
@@ -257,6 +258,24 @@ function KR2({ books, stats }: { books: Book[]; stats: ReturnType<typeof reading
           )
         })}
       </ol>
+    </section>
+  )
+}
+
+function Season({ data, now }: { data: Data; now: string }) {
+  const weeks = seasonWeeks(data, now)
+  const done = weeks.filter((w) => w.days.some((d) => !d.future))
+  const activeWeeks = done.filter((w) => w.km > 0 || w.pages > 0).length
+  return (
+    <section className="section" id="season">
+      <div className="section-heading">
+        <p className="kicker">The record</p>
+        <h2>The full season, one week per row.</h2>
+        <p>
+          From the LinkedIn post to race day. {done.length ? `Active in ${activeWeeks} of ${done.length} week${done.length === 1 ? '' : 's'} so far.` : ''} Empty rows are still to come.
+        </p>
+      </div>
+      <SeasonGrid weeks={weeks} />
     </section>
   )
 }
