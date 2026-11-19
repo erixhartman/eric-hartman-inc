@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-19T22:19:41.788Z",
+  "updatedAt": "2026-11-19T22:19:59.984Z",
   "startDate": "2026-11-18",
   "runs": [
     {
@@ -16,7 +16,7 @@
       "title": "When We Cease to Understand the World",
       "author": "Benjamín Labatut",
       "pages": 192,
-      "page": 0
+      "page": 61
     },
     {
       "id": 2,
@@ -93,7 +93,7 @@
       "title": "In the Japanese Ballpark",
       "author": "Robert K. Fitts",
       "pages": 300,
-      "page": 0
+      "page": 300
     }
   ]
 }
