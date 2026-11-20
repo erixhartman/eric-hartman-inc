@@ -102,7 +102,9 @@ export function weekFacts(data, previous) {
         pages: { target: last.targets.pages, actual: reading.thisWeek.pages },
       }
     : 'No targets yet: this is the first check-in.'
-  return { running, reading, lastTargetsVsActual, previousCheckins: previous.slice(0, 2).map((u) => ({ weekOf: u.weekOf, headline: u.headline, running: u.running, reading: u.reading, targets: u.targets })) }
+  const limits = targetBounds(running, reading)
+  const targetLimits = Object.fromEntries(Object.entries(limits).map(([k, [lo, hi]]) => [k, `${lo} to ${hi}`]))
+  return { running, reading, lastTargetsVsActual, targetLimits, previousCheckins: previous.slice(0, 2).map((u) => ({ weekOf: u.weekOf, headline: u.headline, running: u.running, reading: u.reading, targets: u.targets })) }
 }
 
 // ---------- guardrails: what a check-in may contain ----------
@@ -136,8 +138,20 @@ const trimTo = (s, n) => {
   return t.length > n ? t.slice(0, n - 1).trimEnd() + '…' : t
 }
 
+/** The safe range for each target, given the facts. */
+function targetBounds(run, read) {
+  const longest = run.longestRun?.minutes ?? 0
+  return {
+    runs: [1, 6],
+    // Never ask for a long run more than a quarter longer (or 5 minutes longer) than the longest so far.
+    longestRunMinutes: [10, Math.max(15, Math.round(Math.max(longest * 1.25, longest + 5)))],
+    // Reading: at least most of the needed pace, at most double it.
+    pages: [Math.ceil(read.pagesNeededPerWeek * 0.8), Math.ceil(read.pagesNeededPerWeek * 2)],
+  }
+}
+
 /** Validate and bound a proposed check-in. Returns the saved shape plus notes on anything adjusted. */
-export function sanitizeCheckin(input, data, facts) {
+export function sanitizeCheckin(input, data, facts, { strict = false } = {}) {
   const adjusted = []
   const errors = []
   const run = runningSummary(data)
@@ -162,13 +176,10 @@ export function sanitizeCheckin(input, data, facts) {
   if (errors.length) return { errors }
 
   const t = input.targets ?? {}
-  const longest = run.longestRun?.minutes ?? 0
-  const bounds = {
-    runs: [1, 6],
-    // Never ask for a long run more than a quarter longer (or 5 minutes longer) than the longest so far.
-    longestRunMinutes: [10, Math.max(15, Math.round(Math.max(longest * 1.25, longest + 5)))],
-    // Reading: at least most of the needed pace, at most double it.
-    pages: [Math.ceil(read.pagesNeededPerWeek * 0.8), Math.ceil(read.pagesNeededPerWeek * 2)],
+  const bounds = targetBounds(run, read)
+  if (strict) {
+    const out = Object.entries(bounds).filter(([k, [lo, hi]]) => !(Number(t[k]) >= lo && Number(t[k]) <= hi))
+    if (out.length) return { errors: out.map(([k, [lo, hi]]) => `targets.${k} must be between ${lo} and ${hi} (see targetLimits); make the message match`) }
   }
   const targets = {}
   for (const [k, [lo, hi]] of Object.entries(bounds)) {
@@ -249,13 +260,15 @@ How to work:
 1. You've already called get_week; its result is above.
 2. Compare the week with the plan (running.planCheck), the reading pace (reading.paceCheck) and last week's targets (lastTargetsVsActual).
    Base the reading status on the season-so-far pace; mention this week too.
-3. Call post_checkin exactly once with a status for each goal and next week's targets.
+3. Call post_checkin exactly once with a status for each goal and next week's targets, inside targetLimits.
 
 Rules:
 - Use only numbers that came from get_week. Never invent runs, pages, books, dates or paces. Each note must cite at least one of those numbers.
 - Base running targets on the current phase of the plan. Build gradually; don't jump far past what he has already done.
 - Base reading targets on the pages needed per week, nudging up if he's behind.
 - No medical or injury advice. If a run note mentions pain or injury, say to take it easy and check with a professional, and don't raise targets.
+- The headline is one plain sentence about how the week went, not a list of stats.
+- The message must match the targets you set.
 - Write like a direct, upbeat coach, in plain Canadian English. Short sentences, contractions, no emoji, no em dashes, no hype. Don't open by negating something ("this isn't X, it's Y").`
 
 // ---------- providers ----------
@@ -380,7 +393,7 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
       else if (call.name === 'post_checkin') {
         if (posted) result = { error: 'Already posted this week.' }
         else {
-          const { checkin, errors } = sanitizeCheckin(call.args, data, facts)
+          const { checkin, errors } = sanitizeCheckin(call.args, data, facts, { strict: true })
           if (errors) result = { error: 'Not posted. Fix and call again.', problems: errors }
           else { posted = checkin; result = { posted: true, targets: checkin.targets, adjusted: checkin.adjusted } }
         }

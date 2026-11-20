@@ -103,6 +103,18 @@ test('vague writing is sent back', () => {
   assert.ok(errors.some((e) => /running.note must cite/.test(e)))
 })
 
+test('in the main loop, out-of-range targets are sent back instead of quietly changed', async () => {
+  const model = scripted([
+    { calls: [{ name: 'post_checkin', args: { ...good, targets: { runs: 9, longestRunMinutes: 15, pages: 250 } } }] },
+    { calls: [{ name: 'post_checkin', args: good }] },
+  ])
+  const out = await runCoach({ data, previous: [], provider: model, log: quiet })
+  assert.equal(out.targets.runs, 2)
+  assert.deepEqual(out.adjusted, [])
+  const refusal = model.seen[1].findLast((t) => t.role === 'tool').result
+  assert.ok(refusal.problems.some((p) => /targets.runs must be between 1 and 6/.test(p)))
+})
+
 test('made-up numbers are sent back, real ones pass', () => {
   assert.equal(sanitizeCheckin(good, data, facts).errors, undefined)
   const { errors } = sanitizeCheckin({ ...good, running: { status: 'minor', note: 'A 45-minute long run and 99 km this week.' } }, data, facts)
