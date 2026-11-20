@@ -80,11 +80,20 @@ export function weekFacts(data, previous) {
   const reading = readingSummary(data)
   const s = M.readingStats(data.books, data.startDate, NOW)
   const neededWeek = Math.ceil(s.needPerDay * 7)
+  const weekGap = reading.thisWeek.pages - neededWeek
+  // "Even pace": the same pages every day from the start date to Opening Day.
+  const seasonDays = Math.max(1, M.daysBetween(data.startDate, M.OPENING_DAY))
+  const expectedByNow = Math.round((s.total * Math.min(s.daysIn, seasonDays)) / seasonDays)
+  const seasonGap = s.read - expectedByNow
   reading.paceCheck = {
-    seasonSoFar: `${Math.round(s.actualPerDay)} pages a day since the start, against ${Math.ceil(s.needPerDay)} needed: ${s.actualPerDay >= s.needPerDay ? 'ahead of pace' : 'behind pace'}`,
-    thisWeek: `${reading.thisWeek.pages} pages this week, against ${neededWeek} needed per week: ${reading.thisWeek.pages >= neededWeek ? 'on pace this week' : 'short this week'}`,
+    seasonSoFar: `${s.read} pages read; an even pace would be ${expectedByNow} by now, so ${Math.abs(seasonGap)} pages ${seasonGap >= 0 ? 'ahead' : 'behind'}. ${Math.round(s.actualPerDay)} a day so far against ${Math.ceil(s.needPerDay)} needed from here.`,
+    thisWeek: `${reading.thisWeek.pages} pages this week against ${neededWeek} needed per week: ${Math.abs(weekGap)} ${weekGap >= 0 ? 'over' : 'short'}.`,
   }
-  running.planCheck = `${running.thisWeek.runs} run${running.thisWeek.runs === 1 ? '' : 's'} this week. ${running.currentPhase.plan}. ${running.currentPhase.status}.`
+  const phaseEnd = { p1: `${M.RACE_DAY.slice(0, 4)}-01-01`, p2: `${M.RACE_DAY.slice(0, 4)}-04-01`, p3: M.RACE_DAY }[running.currentPhase.name.replace('Phase ', 'p')]
+  const longest = running.longestRun?.minutes ?? 0
+  const phase1Gap = Math.max(0, 30 - longest)
+  running.planCheck = `${running.thisWeek.runs} run${running.thisWeek.runs === 1 ? '' : 's'} this week, ${running.thisWeek.km} km. ${running.currentPhase.plan}. ${running.currentPhase.status}.` +
+    (running.currentPhase.name === 'Phase 1' ? ` That's ${phase1Gap} minutes short of the 30-minute goal, with ${Math.max(0, M.daysBetween(NOW, phaseEnd))} days left in the phase.` : ` ${Math.max(0, M.daysBetween(NOW, phaseEnd))} days left in this phase.`)
   const last = previous[0]
   const lastTargetsVsActual = last?.targets
     ? {
