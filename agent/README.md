@@ -22,7 +22,7 @@ The code, not the model, decides what can be posted:
 
 ## Cost
 
-$0, with no account or key. The model ([Qwen2.5 7B](https://ollama.com/library/qwen2.5)) runs on the GitHub Actions machine itself through [Ollama](https://ollama.com), and Actions minutes are free on a public repo. The download is cached between weeks. A run takes a few minutes on the runner's CPU.
+$0, with no account or key. The model ([Qwen2.5 14B](https://ollama.com/library/qwen2.5)) runs on the GitHub Actions machine itself through [Ollama](https://ollama.com), and Actions minutes are free on a public repo. The download is cached between weeks. A run takes a few minutes on the runner's CPU.
 
 A small model on a CPU needs more structure than a big hosted one, so the coach gives it some: the lookup always comes first, the facts include ready-made comparisons, each note has to cite a real number, and if it still hasn't posted after four turns, a last step uses Ollama's structured output to force a reply in the check-in's exact shape. The guardrails check that too.
 
@@ -32,7 +32,7 @@ Claude is still available as an option: set `COACH_PROVIDER: anthropic` and add 
 
 - **On a schedule:** Sundays at 23:15 UTC (6:15 pm in Toronto in winter).
 - **On demand:** the "Run workflow" button on the Actions tab, or edit `agent/RUN` and push. If `agent/RUN` starts with `dry-run`, the check-in is printed in the log but not published.
-- **Locally, without saving:** start Ollama, `ollama pull qwen2.5:7b`, then `node agent/coach.mjs --dry-run`
+- **Locally, without saving:** start Ollama, `ollama pull qwen2.5:14b`, then `node agent/coach.mjs --dry-run`
 - **Tests:** `node --test agent/coach.test.mjs` runs the loop, the guardrails, the fallback and the shape of the Ollama and Claude requests against scripted fakes, with no network. The workflow runs them before every check-in.
 
 Re-running in the same week replaces that week's check-in. The last 30 are kept.

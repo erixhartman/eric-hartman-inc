@@ -28,7 +28,7 @@ const MAX_STEPS = 4 // tool-using turns before the structured-output fallback
 const KEEP_UPDATES = 30
 
 const PROVIDER = process.env.COACH_PROVIDER || 'ollama'
-const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'qwen2.5:7b')
+const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'qwen2.5:14b')
 const DRY_RUN = process.argv.includes('--dry-run')
 const NOW = process.env.COACH_DATE || M.today()
 
