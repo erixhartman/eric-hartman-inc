@@ -207,8 +207,9 @@ Rules:
 async function postJSON(url, headers, body) {
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) })
   const text = await res.text()
-  if (!res.ok) throw new Error(`${url} answered ${res.status}: ${text.slice(0, 400)}`)
-  return JSON.parse(text)
+  const where = `${url} (status ${res.status}${res.redirected ? `, redirected to ${res.url}` : ''}, ${res.headers.get('content-type') || 'no content type'})`
+  if (!res.ok) throw new Error(`${where}: ${text.slice(0, 400)}`)
+  try { return JSON.parse(text) } catch { throw new Error(`${where} did not return JSON: ${text.slice(0, 200)}`) }
 }
 
 /** Each provider takes the running transcript and returns { text, calls: [{id, name, args}] }. */
@@ -224,7 +225,7 @@ const providers = {
         if (t.role === 'assistant') messages.push({ role: 'assistant', content: t.text || null, ...(t.calls.length ? { tool_calls: t.calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })) } : {}) })
         if (t.role === 'tool') messages.push({ role: 'tool', tool_call_id: t.id, content: JSON.stringify(t.result) })
       }
-      const json = await postJSON('https://models.github.ai/inference/chat/completions', { Authorization: `Bearer ${token}` }, {
+      const json = await postJSON('https://models.github.ai/inference/chat/completions', { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, {
         model: MODEL,
         messages,
         tools: TOOLS.map((t) => ({ type: 'function', function: t })),
