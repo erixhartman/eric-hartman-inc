@@ -55,6 +55,18 @@ export const addDays = (d: string, n: number) => {
 export const fmtDate = (d: string, opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }) =>
   parse(d).toLocaleDateString('en-CA', opts)
 
+/** Seconds-precision minutes for storage: 10 min 30 s is 10.5. */
+export const toMinutes = (min: number, sec: number) => Math.round((min * 60 + sec) / 60 * 10000) / 10000
+
+/** 10.5 -> "10:30"; 112.13 -> "1:52:08". */
+export const fmtDuration = (minutes: number) => {
+  const total = Math.round(minutes * 60)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = String(total % 60).padStart(2, '0')
+  return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
+}
+
 export const pace = (r: Run) => {
   if (!r.km || !r.minutes) return '—'
   const secs = Math.round((r.minutes * 60) / r.km)
@@ -95,7 +107,7 @@ export function trainingPhases(runs: Run[], now = today()): Phase[] {
   return [
     {
       key: 'p1', when: 'December', plan: 'Build up to running 30 minutes on the treadmill',
-      status: longestMinutes >= 30 ? 'Done' : longestMinutes ? `Longest run so far: ${Math.round(longestMinutes)} min` : 'No runs logged yet',
+      status: longestMinutes >= 30 ? 'Done' : longestMinutes ? `Longest run so far: ${fmtDuration(longestMinutes)}` : 'No runs logged yet',
       done: p1Done, active: now < janStart, future: false,
     },
     {

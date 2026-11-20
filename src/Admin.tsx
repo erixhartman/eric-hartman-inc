@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { type Data, type ReadingEntry, type Run, fmtDate, today } from './model'
+import { type Data, type ReadingEntry, type Run, fmtDate, fmtDuration, toMinutes, today } from './model'
 import { REPO, checkToken, loadFromGitHub, saveToGitHub, tokenStore } from './github'
 
 export function Admin({ data, onChange }: { data: Data; onChange: (d: Data) => void }) {
@@ -59,7 +59,7 @@ export function Admin({ data, onChange }: { data: Data; onChange: (d: Data) => v
           <ul>
             {[...data.runs].sort((a, b) => b.date.localeCompare(a.date)).map((r) => (
               <li key={r.id}>
-                <span>{fmtDate(r.date)} · {r.km} km · {r.minutes} min</span>
+                <span>{fmtDate(r.date)} · {r.km} km · {fmtDuration(r.minutes)}</span>
                 <button type="button" className="link-button" disabled={busy} onClick={() => commit({ ...data, runs: data.runs.filter((x) => x.id !== r.id) }, `Remove run from ${r.date}`)}>
                   Delete
                 </button>
@@ -106,16 +106,21 @@ function Connect({ onConnected }: { onConnected: (t: string) => void }) {
 function LogRun({ busy, onSave }: { busy: boolean; onSave: (r: Run) => Promise<boolean> }) {
   const [date, setDate] = useState(today())
   const [km, setKm] = useState('')
-  const [minutes, setMinutes] = useState('')
+  const [mins, setMins] = useState('')
+  const [secs, setSecs] = useState('')
   const [where, setWhere] = useState<Run['where']>('treadmill')
   const [note, setNote] = useState('')
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    const run: Run = { id: crypto.randomUUID(), date, km: Math.round(parseFloat(km) * 100) / 100, minutes: parseFloat(minutes), where, note: note.trim() || undefined }
+    const m = parseInt(mins || '0', 10)
+    const s = parseInt(secs || '0', 10)
+    if (!(m >= 0) || !(s >= 0 && s < 60)) return
+    const run: Run = { id: crypto.randomUUID(), date, km: Math.round(parseFloat(km) * 100) / 100, minutes: toMinutes(m, s), where, note: note.trim() || undefined }
     if (!(run.km > 0) || !(run.minutes > 0)) return
     if (await onSave(run)) {
       setKm('')
-      setMinutes('')
+      setMins('')
+      setSecs('')
       setNote('')
     }
   }
@@ -125,7 +130,14 @@ function LogRun({ busy, onSave }: { busy: boolean; onSave: (r: Run) => Promise<b
       <div className="fields">
         <label><span>Date</span><input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} required /></label>
         <label><span>Distance (km)</span><input inputMode="decimal" value={km} onChange={(e) => setKm(e.target.value)} placeholder="5.0" required /></label>
-        <label><span>Time (minutes)</span><input inputMode="decimal" value={minutes} onChange={(e) => setMinutes(e.target.value)} placeholder="30" required /></label>
+        <fieldset className="time-field">
+          <legend>Time</legend>
+          <div className="time-inputs">
+            <label><input inputMode="numeric" pattern="[0-9]*" value={mins} onChange={(e) => setMins(e.target.value.replace(/\D/g, ''))} placeholder="30" aria-label="Minutes" required /><span>min</span></label>
+            <label><input inputMode="numeric" pattern="[0-9]*" maxLength={2} value={secs} onChange={(e) => setSecs(e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="00" aria-label="Seconds" /><span>sec</span></label>
+          </div>
+          {secs !== '' && Number(secs) > 59 && <span className="field-error">Seconds go up to 59.</span>}
+        </fieldset>
         <label>
           <span>Where</span>
           <select value={where} onChange={(e) => setWhere(e.target.value as Run['where'])}>

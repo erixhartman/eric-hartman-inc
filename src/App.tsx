@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   type Book, type Data, type ReadingEntry, type Run, HALF_KM, OPENING_DAY, RACE_DAY,
-  bookOrder, dailyActivity, daysBetween, fmtDate, pace, readingStats, seasonWeeks, today, trainingPhases, weekStart, weeklyTotals,
+  bookOrder, dailyActivity, daysBetween, fmtDate, fmtDuration, pace, readingStats, seasonWeeks, today, trainingPhases, weekStart, weeklyTotals,
 } from './model'
 import { Admin } from './Admin'
 import { ServiceUpdate, type CoachUpdate } from './Coach'
@@ -208,7 +208,7 @@ function Line1({ data, runs, now, weeks }: { data: Data; runs: Run[]; now: strin
       </div>
 
       <div className="stats">
-        <Stat value={raceRun ? 'Done' : longest.toFixed(1)} unit={raceRun ? '' : 'km'} label={raceRun ? `Finished in ${Math.floor(raceRun.minutes / 60)}:${String(Math.round(raceRun.minutes % 60)).padStart(2, '0')}` : `longest run, of ${HALF_KM} km on race day`} />
+        <Stat value={raceRun ? 'Done' : longest.toFixed(1)} unit={raceRun ? '' : 'km'} label={raceRun ? `Finished in ${fmtDuration(raceRun.minutes)}` : `longest run, of ${HALF_KM} km on race day`} />
         <Stat value={String(thisWeek.length)} label={`runs this week (${thisWeek.reduce((s, r) => s + r.km, 0).toFixed(1)} km)`}
           spark={<Spark values={weeks.map((w) => w.runs)} target={5} label={`Runs per week over ${range}. Dashed line: the plan's 5 a week.`} />} />
         <Stat value={totalKm.toFixed(0)} unit="km" label={`run since the post, across ${runs.length} run${runs.length === 1 ? '' : 's'}`}
@@ -238,7 +238,7 @@ function Line1({ data, runs, now, weeks }: { data: Data; runs: Run[]; now: strin
                 <tr key={r.id}>
                   <td>{fmtDate(r.date, { weekday: 'short', month: 'short', day: 'numeric' })}{r.note && <span className="note">{r.note}</span>}</td>
                   <td className="num">{r.km.toFixed(1)} km</td>
-                  <td className="num">{Math.round(r.minutes)} min</td>
+                  <td className="num">{fmtDuration(r.minutes)}</td>
                   <td className="num hide-s">{pace(r)}</td>
                   <td className="hide-s">{r.where === 'race' ? 'Race' : r.where === 'treadmill' ? 'Treadmill' : 'Outside'}</td>
                 </tr>
