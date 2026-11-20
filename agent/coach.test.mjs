@@ -25,22 +25,22 @@ function scripted(turns) {
 const good = {
   headline: 'Short week, solid start',
   running: { status: 'minor', note: 'One 10-minute run. December asks for 30.' },
-  reading: { status: 'good', note: 'Ahead of the pages needed this week.' },
+  reading: { status: 'good', note: '390 pages read, well ahead of the 34 a day needed.' },
   message: 'Two runs this week, and stretch the longer one to 15 minutes.',
   targets: { runs: 2, longestRunMinutes: 15, pages: 250 },
 }
 
-test('the agent looks things up, then posts once', async () => {
-  const model = scripted([
-    { calls: [{ name: 'get_week', args: {} }] },
-    { calls: [{ name: 'post_checkin', args: good }] },
-  ])
-  const out = await runCoach({ data, previous: [{ weekOf: '2026-11-09', headline: 'Last week' }], provider: model, log: quiet })
+test('the facts come first, then the agent posts once', async () => {
+  const model = scripted([{ calls: [{ name: 'post_checkin', args: good }] }])
+  const previous = [{ weekOf: '2026-11-09', headline: 'Last week', running: {}, reading: {}, targets: { runs: 2, longestRunMinutes: 12, pages: 200 } }]
+  const out = await runCoach({ data, previous, provider: model, log: quiet })
   assert.equal(out.headline, good.headline)
   assert.equal(out.running.status, 'minor')
-  assert.equal(model.seen.length, 2)
-  // The model saw real numbers from the tool on its second turn.
-  const week = model.seen[1].find((t) => t.role === 'tool').result
+  assert.equal(model.seen.length, 1)
+  // Before its first turn, the model already had the week's numbers.
+  const week = model.seen[0].find((t) => t.role === 'tool').result
+  assert.equal(week.lastTargetsVsActual.runs.target, 2)
+  assert.ok(week.reading.paceCheck.verdict)
   assert.ok(week.running.currentPhase, 'running summary was returned')
   assert.equal(typeof week.reading.pagesNeededPerWeek, 'number', 'reading summary was returned')
   assert.equal(week.previousCheckins[0].headline, 'Last week', 'past check-ins were returned')
@@ -96,6 +96,12 @@ test('a bad fallback gets one more try, then fails', async () => {
   assert.equal(tries, 2)
 })
 
+test('vague writing is sent back', () => {
+  const { errors } = sanitizeCheckin({ ...good, headline: 'Eric', running: { status: 'good', note: 'Keep it up!' } }, data)
+  assert.ok(errors.some((e) => /headline/.test(e)))
+  assert.ok(errors.some((e) => /running.note must cite/.test(e)))
+})
+
 test('long text is trimmed', () => {
   const { checkin } = sanitizeCheckin({ ...good, headline: 'x'.repeat(200) }, data)
   assert.ok(checkin.headline.length <= 90)
@@ -126,13 +132,17 @@ test('Claude requests are shaped the way the Messages API expects', async () => 
   const first = bodies[0]
   assert.equal(typeof first.system, 'string')
   assert.ok(first.tools.every((t) => t.name && t.input_schema?.type === 'object'))
-  // Second request: assistant tool_use blocks, then one user turn holding a tool_result for each.
-  const [user1, assistant, results] = bodies[1].messages
-  assert.equal(user1.role, 'user')
+  // The forced first lookup is a proper tool_use / tool_result pair.
+  const [u0, a0, r0] = bodies[0].messages
+  assert.equal(u0.role, 'user')
+  assert.equal(a0.content[0].type, 'tool_use')
+  assert.equal(r0.content[0].tool_use_id, a0.content[0].id)
+  // Second request: the model's two tool_use blocks, then one user turn holding a tool_result for each.
+  const [, , , assistant, results] = bodies[1].messages
   assert.deepEqual(assistant.content.filter((b) => b.type === 'tool_use').map((b) => b.id), ['t1', 't2'])
   assert.equal(results.role, 'user')
   assert.deepEqual(results.content.map((b) => [b.type, b.tool_use_id]), [['tool_result', 't1'], ['tool_result', 't2']])
-  assert.equal(bodies[1].messages.length, 3)
+  assert.equal(bodies[1].messages.length, 5)
 })
 
 test('Ollama requests carry the tools and send results back by tool name', async () => {
@@ -168,9 +178,9 @@ test('Ollama requests carry the tools and send results back by tool name', async
   assert.equal(bodies[0].think, false)
   assert.ok(bodies[0].tools.every((t) => t.type === 'function' && t.function.name))
   const msgs = bodies[1].messages
-  const assistant = msgs.find((m) => m.role === 'assistant')
+  const assistant = msgs.filter((m) => m.role === 'assistant')[1]
   assert.equal(assistant.content, '', 'hidden reasoning is stripped before it goes back')
-  const toolMsg = msgs.find((m) => m.role === 'tool')
+  const toolMsg = bodies[0].messages.find((m) => m.role === 'tool')
   assert.equal(toolMsg.tool_name, 'get_week')
   assert.ok(JSON.parse(toolMsg.content).running.currentPhase)
 })

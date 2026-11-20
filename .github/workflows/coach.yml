@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 45
     env:
       TZ: America/Toronto
-      COACH_MODEL: llama3.2:3b
+      COACH_MODEL: qwen2.5:7b
       OLLAMA_MODELS: /home/runner/.ollama/models
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
           nohup ollama serve > /tmp/ollama.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 1; done
 
-      # Keep the model download (about 2 GB) between weeks.
+      # Keep the model download (about 4.7 GB) between weeks.
       - uses: actions/cache@v4
         with:
           path: /home/runner/.ollama/models
@@ -58,7 +58,13 @@ jobs:
       - name: Run the coach
         env:
           COACH_PROVIDER: ollama
-        run: node agent/coach.mjs
+        run: |
+          # A push to agent/RUN starting with "dry-run" prints the check-in without publishing it.
+          if [ "${{ github.event_name }}" = "push" ] && head -1 agent/RUN | grep -q '^dry-run'; then
+            node agent/coach.mjs --dry-run
+          else
+            node agent/coach.mjs
+          fi
 
       - name: Ollama log (if something went wrong)
         if: failure()

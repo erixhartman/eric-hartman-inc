@@ -28,7 +28,7 @@ const MAX_STEPS = 4 // tool-using turns before the structured-output fallback
 const KEEP_UPDATES = 30
 
 const PROVIDER = process.env.COACH_PROVIDER || 'ollama'
-const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'llama3.2:3b')
+const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'qwen2.5:7b')
 const DRY_RUN = process.argv.includes('--dry-run')
 const NOW = process.env.COACH_DATE || M.today()
 
@@ -76,7 +76,23 @@ function readingSummary(data) {
 }
 
 function weekFacts(data, previous) {
-  return { running: runningSummary(data), reading: readingSummary(data), previousCheckins: previous.slice(0, 2) }
+  const running = runningSummary(data)
+  const reading = readingSummary(data)
+  const s = M.readingStats(data.books, data.startDate, NOW)
+  reading.paceCheck = {
+    pagesPerDaySoFar: Math.round(s.actualPerDay),
+    pagesNeededPerDay: Math.ceil(s.needPerDay),
+    verdict: s.actualPerDay >= s.needPerDay ? 'ahead of the needed pace' : 'behind the needed pace',
+  }
+  const last = previous[0]
+  const lastTargetsVsActual = last?.targets
+    ? {
+        runs: { target: last.targets.runs, actual: running.thisWeek.runs },
+        longestRunMinutes: { target: last.targets.longestRunMinutes, actual: Math.max(0, ...data.runs.filter((r) => r.date >= running.thisWeek.from).map((r) => r.minutes)) },
+        pages: { target: last.targets.pages, actual: reading.thisWeek.pages },
+      }
+    : 'No targets yet: this is the first check-in.'
+  return { running, reading, lastTargetsVsActual, previousCheckins: previous.slice(0, 2).map((u) => ({ weekOf: u.weekOf, headline: u.headline, running: u.running, reading: u.reading, targets: u.targets })) }
 }
 
 // ---------- guardrails: what a check-in may contain ----------
@@ -100,6 +116,10 @@ export function sanitizeCheckin(input, data) {
     if (!input?.[key]?.note) errors.push(`${key}.note is required`)
   }
   if (!input?.headline) errors.push('headline is required')
+  else if (String(input.headline).trim().length < 20) errors.push('headline must be a full sentence about the week, at least 20 characters')
+  for (const key of ['running', 'reading']) {
+    if (input?.[key]?.note && !/\d/.test(input[key].note)) errors.push(`${key}.note must cite at least one number from get_week`)
+  }
   if (errors.length) return { errors }
 
   const t = input.targets ?? {}
@@ -187,12 +207,18 @@ const SYSTEM = `You are the Sunday coach for Eric Hartman Inc., a public, tongue
 Every Sunday you review the week and post a check-in on the tracker. Anyone can read it, Eric included.
 
 How to work:
-1. Call get_week.
-2. Compare the week with the plan and with the targets you set last time.
+1. You've already called get_week; its result is above.
+2. Compare the week with the plan (running.currentPhase), the reading pace (reading.paceCheck) and last week's targets (lastTargetsVsActual).
 3. Call post_checkin exactly once with a status for each goal and next week's targets.
 
+Example of the tone only. These numbers are made up; never copy them:
+headline: "Three runs and a new long run, but the books slipped."
+running note: "Three runs and a 22-minute long run, up from 18. Right on plan for December."
+reading note: "Only 90 pages against 240 needed this week, so the pace slipped behind."
+message: "Keep the three runs and push the long one to 25 minutes. Find 35 pages a day to catch up."
+
 Rules:
-- Use only numbers that came from the tools. Never invent runs, pages, dates or paces.
+- Use only numbers that came from get_week. Never invent runs, pages, books, dates or paces. Each note must cite at least one of those numbers.
 - Base running targets on the current phase of the plan. Build gradually; don't jump far past what he has already done.
 - Base reading targets on the pages needed per week, nudging up if he's behind.
 - No medical or injury advice. If a run note mentions pain or injury, say to take it easy and check with a professional, and don't raise targets.
@@ -299,6 +325,11 @@ export const providers = {
 export async function runCoach({ data, previous, provider, log = console.log }) {
   const transcript = [{ role: 'user', text: `Today is ${NOW}. Do this week's check-in.` }]
   let posted = null
+  // The first turn is always the lookup, like forcing tool_choice on a hosted API:
+  // small models otherwise tend to write before they've read anything.
+  transcript.push({ role: 'assistant', text: '', calls: [{ id: 'first_get_week', name: 'get_week', args: {} }] })
+  transcript.push({ role: 'tool', id: 'first_get_week', name: 'get_week', result: weekFacts(data, previous) })
+  log('step 0: get_week (always first)')
 
   for (let step = 1; step <= MAX_STEPS && !posted; step++) {
     const { text, calls } = await provider.step(transcript)
@@ -319,18 +350,12 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
           else { posted = checkin; result = { posted: true, targets: checkin.targets, adjusted: checkin.adjusted } }
         }
       } else result = { error: `No tool called ${call.name}.` }
-      log(`step ${step}: ${call.name}${result?.error ? ' -> ' + result.error : ''}`)
+      log(`step ${step}: ${call.name}${result?.error ? ' -> ' + result.error + (result.problems ? ' ' + result.problems.join('; ') : '') : ''}`)
       transcript.push({ role: 'tool', id: call.id, name: call.name, result })
     }
   }
   // A provider that supports structured output gets two constrained tries to finish.
   for (let attempt = 1; !posted && provider.final && attempt <= 2; attempt++) {
-    if (!transcript.some((t) => t.role === 'tool' && t.name === 'get_week')) {
-      // Make sure the facts are in front of it before it writes anything.
-      const id = 'fallback_get_week'
-      transcript.push({ role: 'assistant', text: '', calls: [{ id, name: 'get_week', args: {} }] })
-      transcript.push({ role: 'tool', id, name: 'get_week', result: weekFacts(data, previous) })
-    }
     const args = await provider.final(transcript)
     const { checkin, errors } = sanitizeCheckin(args, data)
     log(`fallback ${attempt}: post_checkin${errors ? ' -> ' + errors.join('; ') : ''}`)
