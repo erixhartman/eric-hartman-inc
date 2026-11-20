@@ -116,28 +116,41 @@ test('Claude requests are shaped the way the Messages API expects', async () => 
 })
 
 test('Ollama requests carry the tools and send results back by tool name', async () => {
+  const http = await import('node:http')
   const bodies = []
   const replies = [
-    { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'get_running_summary', arguments: {} } }] } },
+    { message: { role: 'assistant', content: '<think>hmm</think>', tool_calls: [{ function: { name: 'get_running_summary', arguments: {} } }] } },
     { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'post_checkin', arguments: JSON.stringify(good) } }] } },
   ]
-  const realFetch = globalThis.fetch
-  globalThis.fetch = async (url, init) => {
-    assert.match(url, /\/api\/chat$/)
-    bodies.push(JSON.parse(init.body))
-    return new Response(JSON.stringify(replies[bodies.length - 1]), { status: 200, headers: { 'content-type': 'application/json' } })
-  }
+  const server = http.createServer((req, res) => {
+    assert.equal(req.url, '/api/chat')
+    let body = ''
+    req.on('data', (c) => { body += c })
+    req.on('end', () => {
+      bodies.push(JSON.parse(body))
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify(replies[bodies.length - 1]))
+    })
+  })
+  await new Promise((r) => server.listen(0, '127.0.0.1', r))
+  process.env.OLLAMA_HOST = `http://127.0.0.1:${server.address().port}`
+  const log = console.log
+  console.log = () => {}
   try {
     const out = await runCoach({ data, previous: [], provider: providers.ollama, log: quiet })
     assert.equal(out.headline, good.headline, 'string arguments are parsed too')
   } finally {
-    globalThis.fetch = realFetch
+    console.log = log
+    server.close()
+    delete process.env.OLLAMA_HOST
   }
   assert.equal(bodies[0].stream, false)
   assert.equal(bodies[0].think, false)
+  assert.match(bodies[0].messages[0].content, /no_think/)
   assert.ok(bodies[0].tools.every((t) => t.type === 'function' && t.function.name))
   const msgs = bodies[1].messages
-  assert.equal(msgs[0].role, 'system')
+  const assistant = msgs.find((m) => m.role === 'assistant')
+  assert.equal(assistant.content, '', 'hidden reasoning is stripped before it goes back')
   const toolMsg = msgs.find((m) => m.role === 'tool')
   assert.equal(toolMsg.tool_name, 'get_running_summary')
   assert.ok(JSON.parse(toolMsg.content).currentPhase)

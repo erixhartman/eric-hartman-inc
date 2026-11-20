@@ -19,6 +19,7 @@
 
 import { readFile, writeFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
+import http from 'node:http'
 import * as M from '../src/model.ts'
 
 const DATA_PATH = new URL('../public/data.json', import.meta.url)
@@ -28,7 +29,6 @@ const KEEP_UPDATES = 30
 
 const PROVIDER = process.env.COACH_PROVIDER || 'ollama'
 const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'qwen3:4b')
-const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434'
 const DRY_RUN = process.argv.includes('--dry-run')
 const NOW = process.env.COACH_DATE || M.today()
 
@@ -214,28 +214,52 @@ async function postJSON(url, headers, body) {
   try { return JSON.parse(text) } catch { throw new Error(`${where} did not return JSON: ${text.slice(0, 200)}`) }
 }
 
+/** POST to a local server with no timeout: a model on a CPU can take minutes to answer. */
+function postLocalJSON(url, body) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url)
+    const payload = JSON.stringify(body)
+    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, (res) => {
+      let text = ''
+      res.setEncoding('utf8')
+      res.on('data', (c) => { text += c })
+      res.on('end', () => {
+        if (res.statusCode >= 400) return reject(new Error(`${url} answered ${res.statusCode}: ${text.slice(0, 400)}`))
+        try { resolve(JSON.parse(text)) } catch { reject(new Error(`${url} did not return JSON: ${text.slice(0, 200)}`)) }
+      })
+    })
+    req.setTimeout(0)
+    req.on('error', reject)
+    req.end(payload)
+  })
+}
+
 /** Each provider takes the running transcript and returns { text, calls: [{id, name, args}] }. */
 export const providers = {
   // Ollama: an open model running on the same machine. Free, no key, no account.
   ollama: {
     async step(transcript) {
-      const messages = [{ role: 'system', content: SYSTEM }]
+      // "/no_think" switches Qwen3's hidden reasoning off from the prompt side too.
+      const messages = [{ role: 'system', content: SYSTEM + '\n\n/no_think' }]
       for (const t of transcript) {
         if (t.role === 'user') messages.push({ role: 'user', content: t.text })
         if (t.role === 'assistant') messages.push({ role: 'assistant', content: t.text || '', ...(t.calls.length ? { tool_calls: t.calls.map((c) => ({ function: { name: c.name, arguments: c.args } })) } : {}) })
         if (t.role === 'tool') messages.push({ role: 'tool', tool_name: t.name, content: JSON.stringify(t.result) })
       }
-      const json = await postJSON(`${OLLAMA_HOST}/api/chat`, {}, {
+      const started = Date.now()
+      const json = await postLocalJSON(`${process.env.OLLAMA_HOST || 'http://127.0.0.1:11434'}/api/chat`, {
         model: MODEL,
         messages,
         tools: TOOLS.map((t) => ({ type: 'function', function: t })),
         stream: false,
         think: false, // skip the long hidden reasoning; it's slow on a CPU
-        options: { temperature: 0.2, num_ctx: 12288 },
+        options: { temperature: 0.2, num_ctx: 12288, num_predict: 700 },
       })
       const msg = json.message ?? {}
+      const text = String(msg.content ?? '').replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim()
+      console.log(`  model: ${((Date.now() - started) / 1000).toFixed(0)}s, ${json.prompt_eval_count ?? '?'} tokens in, ${json.eval_count ?? '?'} out, ${msg.tool_calls?.length ?? 0} tool calls${text ? `, said: ${text.slice(0, 120)}` : ''}`)
       return {
-        text: msg.content ?? '',
+        text,
         calls: (msg.tool_calls ?? []).map((c, i) => ({
           id: `call_${Date.now()}_${i}`,
           name: c.function?.name,
