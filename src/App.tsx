@@ -52,10 +52,10 @@ export default function App() {
             <span>Eric Hartman Inc.</span>
           </a>
           <nav aria-label="Sections">
-            {coach.length > 0 && <a href="#coach">Service update</a>}
             <a href="#kr1">Line 1</a>
             <a href="#kr2">Line 2</a>
             <a href="#season">The record</a>
+            {coach.length > 0 && <a href="#coach">Service update</a>}
             {editing ? <a className="nav-cta" href="#">Done editing</a> : null}
           </nav>
         </div>
@@ -119,10 +119,10 @@ function Report({ data, coach }: { data: Data; coach: CoachUpdate[] }) {
         </aside>
       </section>
 
-      <ServiceUpdate updates={coach} />
       <Line1 data={data} runs={runs} now={now} weeks={weeks} />
       <Line2 books={data.books} log={data.reading ?? []} stats={reading} weeks={weeks} />
       <Season data={data} now={now} />
+      <ServiceUpdate updates={coach} />
     </>
   )
 }
