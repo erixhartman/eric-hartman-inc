@@ -14,7 +14,7 @@ export function ActivityStrip({ days }: { days: Day[] }) {
   return (
     <div className="strip" role="img" aria-label={`Active on ${active} of the last ${days.length} days`}>
       {lanes.map((lane) => (
-        <div className="strip-lane" key={lane.label}>
+        <div className={`strip-lane ${lane.label === 'Run' ? 'run' : 'read'}`} key={lane.label}>
           <span className="strip-label">{lane.label}</span>
           <div className="strip-days" style={{ gridTemplateColumns: `repeat(${days.length}, 1fr)` }}>
             {days.map((d) => (
@@ -77,12 +77,12 @@ export function SeasonGrid({ weeks }: { weeks: SeasonWeek[] }) {
               {fmtDate(w.start)}
               {w.marks.map((m) => <em key={m}>{m}</em>)}
             </span>
-            <span className="season-cells" role="cell">
+            <span className="season-cells run" role="cell">
               {w.days.map((d) => (
                 <span key={d.date} className={`sq ${d.future ? 'f' : `l${runLevel(d.km)}`}`} title={`${fmtDate(d.date, { weekday: 'short', month: 'short', day: 'numeric' })}: ${d.km ? `${d.km.toFixed(1)} km` : 'no run'}`} />
               ))}
             </span>
-            <span className="season-cells" role="cell">
+            <span className="season-cells read" role="cell">
               {w.days.map((d) => (
                 <span key={d.date} className={`sq ${d.future ? 'f' : `l${readLevel(d.pages)}`}`} title={`${fmtDate(d.date, { weekday: 'short', month: 'short', day: 'numeric' })}: ${d.pages ? `${d.pages} pages` : 'no reading'}`} />
               ))}
