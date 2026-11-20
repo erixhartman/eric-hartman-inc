@@ -32,18 +32,18 @@ const good = {
 
 test('the agent looks things up, then posts once', async () => {
   const model = scripted([
-    { calls: [{ name: 'get_running_summary', args: {} }, { name: 'get_reading_summary', args: {} }] },
-    { calls: [{ name: 'get_previous_checkins', args: { count: 2 } }] },
+    { calls: [{ name: 'get_week', args: {} }] },
     { calls: [{ name: 'post_checkin', args: good }] },
   ])
-  const out = await runCoach({ data, previous: [], provider: model, log: quiet })
+  const out = await runCoach({ data, previous: [{ weekOf: '2026-11-09', headline: 'Last week' }], provider: model, log: quiet })
   assert.equal(out.headline, good.headline)
   assert.equal(out.running.status, 'minor')
-  assert.equal(model.seen.length, 3)
-  // The model saw real numbers from the tools on its third turn.
-  const toolResults = model.seen[2].filter((t) => t.role === 'tool').map((t) => t.result)
-  assert.ok(toolResults.some((r) => r.currentPhase), 'running summary was returned')
-  assert.ok(toolResults.some((r) => typeof r.pagesNeededPerWeek === 'number'), 'reading summary was returned')
+  assert.equal(model.seen.length, 2)
+  // The model saw real numbers from the tool on its second turn.
+  const week = model.seen[1].find((t) => t.role === 'tool').result
+  assert.ok(week.running.currentPhase, 'running summary was returned')
+  assert.equal(typeof week.reading.pagesNeededPerWeek, 'number', 'reading summary was returned')
+  assert.equal(week.previousCheckins[0].headline, 'Last week', 'past check-ins were returned')
 })
 
 test('targets outside the limits are pulled back and reported', () => {
@@ -84,7 +84,7 @@ test('long text is trimmed', () => {
 test('Claude requests are shaped the way the Messages API expects', async () => {
   const bodies = []
   const replies = [
-    { content: [{ type: 'text', text: 'Looking at the week.' }, { type: 'tool_use', id: 't1', name: 'get_running_summary', input: {} }, { type: 'tool_use', id: 't2', name: 'get_reading_summary', input: {} }] },
+    { content: [{ type: 'text', text: 'Looking at the week.' }, { type: 'tool_use', id: 't1', name: 'get_week', input: {} }, { type: 'tool_use', id: 't2', name: 'get_week', input: {} }] },
     { content: [{ type: 'tool_use', id: 't3', name: 'post_checkin', input: good }] },
   ]
   const realFetch = globalThis.fetch
@@ -119,7 +119,7 @@ test('Ollama requests carry the tools and send results back by tool name', async
   const http = await import('node:http')
   const bodies = []
   const replies = [
-    { message: { role: 'assistant', content: '<think>hmm</think>', tool_calls: [{ function: { name: 'get_running_summary', arguments: {} } }] } },
+    { message: { role: 'assistant', content: '<think>hmm</think>', tool_calls: [{ function: { name: 'get_week', arguments: {} } }] } },
     { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'post_checkin', arguments: JSON.stringify(good) } }] } },
   ]
   const server = http.createServer((req, res) => {
@@ -152,6 +152,6 @@ test('Ollama requests carry the tools and send results back by tool name', async
   const assistant = msgs.find((m) => m.role === 'assistant')
   assert.equal(assistant.content, '', 'hidden reasoning is stripped before it goes back')
   const toolMsg = msgs.find((m) => m.role === 'tool')
-  assert.equal(toolMsg.tool_name, 'get_running_summary')
-  assert.ok(JSON.parse(toolMsg.content).currentPhase)
+  assert.equal(toolMsg.tool_name, 'get_week')
+  assert.ok(JSON.parse(toolMsg.content).running.currentPhase)
 })

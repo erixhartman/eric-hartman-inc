@@ -131,19 +131,9 @@ export function sanitizeCheckin(input, data) {
 
 const TOOLS = [
   {
-    name: 'get_running_summary',
-    description: "Eric's half-marathon training: today's date, days to race day, the current phase of the plan and progress on it, the longest run, this week's and the last four weeks' runs, and recent runs.",
+    name: 'get_week',
+    description: "Everything for this week's review: Eric's running (plan phase, longest run, this week and the last four weeks), his reading (pages needed and read, books in progress), and your last two check-ins with the targets you set.",
     parameters: { type: 'object', properties: {}, additionalProperties: false },
-  },
-  {
-    name: 'get_reading_summary',
-    description: "Eric's 12-book goal: days to Opening Day, pages read and needed, the pace needed per day and per week, this week's and the last four weeks' pages, and books in progress.",
-    parameters: { type: 'object', properties: {}, additionalProperties: false },
-  },
-  {
-    name: 'get_previous_checkins',
-    description: 'Your most recent weekly check-ins, newest first, so this week can follow on from last week. Empty on the first run.',
-    parameters: { type: 'object', properties: { count: { type: 'integer', minimum: 1, maximum: 4 } }, additionalProperties: false },
   },
   {
     name: 'post_checkin',
@@ -193,9 +183,9 @@ const SYSTEM = `You are the Sunday coach for Eric Hartman Inc., a public, tongue
 Every Sunday you review the week and post a check-in on the tracker. Anyone can read it, Eric included.
 
 How to work:
-1. Call get_running_summary and get_reading_summary.
-2. Call get_previous_checkins to see what you said last week and whether he hit the targets you set.
-3. Decide a status for each goal and next week's targets, then call post_checkin exactly once.
+1. Call get_week.
+2. Compare the week with the plan and with the targets you set last time.
+3. Call post_checkin exactly once with a status for each goal and next week's targets.
 
 Rules:
 - Use only numbers that came from the tools. Never invent runs, pages, dates or paces.
@@ -253,7 +243,7 @@ export const providers = {
         tools: TOOLS.map((t) => ({ type: 'function', function: t })),
         stream: false,
         think: false, // skip the long hidden reasoning; it's slow on a CPU
-        options: { temperature: 0.2, num_ctx: 12288, num_predict: 700 },
+        options: { temperature: 0.2, num_ctx: 12288, num_predict: 450 },
       })
       const msg = json.message ?? {}
       const text = String(msg.content ?? '').replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim()
@@ -316,9 +306,7 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
     }
     for (const call of calls) {
       let result
-      if (call.name === 'get_running_summary') result = runningSummary(data)
-      else if (call.name === 'get_reading_summary') result = readingSummary(data)
-      else if (call.name === 'get_previous_checkins') result = previous.slice(0, clamp(Number(call.args.count) || 2, 1, 4))
+      if (call.name === 'get_week') result = { running: runningSummary(data), reading: readingSummary(data), previousCheckins: previous.slice(0, 2) }
       else if (call.name === 'post_checkin') {
         if (posted) result = { error: 'Already posted this week.' }
         else {

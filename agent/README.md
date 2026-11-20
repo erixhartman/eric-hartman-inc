@@ -6,9 +6,8 @@ A small AI agent that reviews my week every Sunday and posts a check-in on [Eric
 
 Every Sunday evening, GitHub Actions runs `coach.mjs`. The model gets tools instead of a prompt stuffed with data, and works through them itself:
 
-1. **Looks things up.** `get_running_summary` and `get_reading_summary` return this week's runs and pages, the current phase of the training plan, and the pace needed for race day and Opening Day. They use the same goal logic as the site (`src/model.ts`), so the coach and the page always agree.
-2. **Checks its own history.** `get_previous_checkins` returns last week's check-in, so it can see whether I hit the targets it set.
-3. **Acts.** `post_checkin` publishes a status for each goal (good service, minor delays or major delays), a short note, and next week's targets. The workflow commits it to `public/coach.json`, and Vercel redeploys the site.
+1. **Looks things up.** `get_week` returns this week's runs and pages, the current phase of the training plan, the pace needed for race day and Opening Day, and its own last two check-ins, so it can see whether I hit the targets it set. It uses the same goal logic as the site (`src/model.ts`), so the coach and the page always agree.
+2. **Acts.** `post_checkin` publishes a status for each goal (good service, minor delays or major delays), a short note, and next week's targets. The workflow commits it to `public/coach.json`, and Vercel redeploys the site.
 
 ## Guardrails
 

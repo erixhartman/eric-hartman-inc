@@ -16,12 +16,12 @@ permissions:
 
 concurrency:
   group: sunday-coach
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   coach:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     env:
       TZ: America/Toronto
       COACH_MODEL: qwen3:4b
