@@ -24,11 +24,11 @@ import * as M from '../src/model.ts'
 
 const DATA_PATH = new URL('../public/data.json', import.meta.url)
 const OUT_PATH = new URL('../public/coach.json', import.meta.url)
-const MAX_STEPS = 8
+const MAX_STEPS = 4 // tool-using turns before the structured-output fallback
 const KEEP_UPDATES = 30
 
 const PROVIDER = process.env.COACH_PROVIDER || 'ollama'
-const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'qwen3:4b')
+const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'llama3.2:3b')
 const DRY_RUN = process.argv.includes('--dry-run')
 const NOW = process.env.COACH_DATE || M.today()
 
@@ -73,6 +73,10 @@ function readingSummary(data) {
     inProgress: data.books.filter((b) => b.page > 0 && b.page < b.pages).map((b) => ({ title: b.title, page: b.page, pages: b.pages })),
     note: 'Page counts are estimates until checked against the physical editions.',
   }
+}
+
+function weekFacts(data, previous) {
+  return { running: runningSummary(data), reading: readingSummary(data), previousCheckins: previous.slice(0, 2) }
 }
 
 // ---------- guardrails: what a check-in may contain ----------
@@ -229,33 +233,33 @@ export const providers = {
   // Ollama: an open model running on the same machine. Free, no key, no account.
   ollama: {
     async step(transcript) {
-      // "/no_think" switches Qwen3's hidden reasoning off from the prompt side too.
-      const messages = [{ role: 'system', content: SYSTEM + '\n\n/no_think' }]
-      for (const t of transcript) {
-        if (t.role === 'user') messages.push({ role: 'user', content: t.text })
-        if (t.role === 'assistant') messages.push({ role: 'assistant', content: t.text || '', ...(t.calls.length ? { tool_calls: t.calls.map((c) => ({ function: { name: c.name, arguments: c.args } })) } : {}) })
-        if (t.role === 'tool') messages.push({ role: 'tool', tool_name: t.name, content: JSON.stringify(t.result) })
-      }
+      const messages = ollamaMessages(transcript)
       const started = Date.now()
       const json = await postLocalJSON(`${process.env.OLLAMA_HOST || 'http://127.0.0.1:11434'}/api/chat`, {
         model: MODEL,
         messages,
         tools: TOOLS.map((t) => ({ type: 'function', function: t })),
         stream: false,
-        think: false, // skip the long hidden reasoning; it's slow on a CPU
-        options: { temperature: 0.2, num_ctx: 12288, num_predict: 450 },
+        think: false,
+        options: { temperature: 0.2, num_ctx: 8192, num_predict: 450 },
       })
-      const msg = json.message ?? {}
-      const text = String(msg.content ?? '').replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim()
-      console.log(`  model: ${((Date.now() - started) / 1000).toFixed(0)}s, ${json.prompt_eval_count ?? '?'} tokens in, ${json.eval_count ?? '?'} out, ${msg.tool_calls?.length ?? 0} tool calls${text ? `, said: ${text.slice(0, 120)}` : ''}`)
-      return {
-        text,
-        calls: (msg.tool_calls ?? []).map((c, i) => ({
-          id: `call_${Date.now()}_${i}`,
-          name: c.function?.name,
-          args: typeof c.function?.arguments === 'string' ? safeParse(c.function.arguments) : (c.function?.arguments ?? {}),
-        })),
-      }
+      return ollamaResult(json, started)
+    },
+    // Fallback: constrain the reply to the check-in's JSON schema, so a small model can't wander off.
+    async final(transcript) {
+      const messages = ollamaMessages(transcript)
+      messages.push({ role: 'user', content: "Now write this week's check-in. Reply with only the JSON for post_checkin." })
+      const started = Date.now()
+      const json = await postLocalJSON(`${process.env.OLLAMA_HOST || 'http://127.0.0.1:11434'}/api/chat`, {
+        model: MODEL,
+        messages,
+        format: TOOLS.find((t) => t.name === 'post_checkin').parameters,
+        stream: false,
+        think: false,
+        options: { temperature: 0.2, num_ctx: 8192, num_predict: 600 },
+      })
+      const { text } = ollamaResult(json, started)
+      return safeParse(text)
     },
   },
 
@@ -306,7 +310,7 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
     }
     for (const call of calls) {
       let result
-      if (call.name === 'get_week') result = { running: runningSummary(data), reading: readingSummary(data), previousCheckins: previous.slice(0, 2) }
+      if (call.name === 'get_week') result = weekFacts(data, previous)
       else if (call.name === 'post_checkin') {
         if (posted) result = { error: 'Already posted this week.' }
         else {
@@ -319,8 +323,47 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
       transcript.push({ role: 'tool', id: call.id, name: call.name, result })
     }
   }
-  if (!posted) throw new Error(`The coach didn't post a check-in within ${MAX_STEPS} steps.`)
+  // A provider that supports structured output gets two constrained tries to finish.
+  for (let attempt = 1; !posted && provider.final && attempt <= 2; attempt++) {
+    if (!transcript.some((t) => t.role === 'tool' && t.name === 'get_week')) {
+      // Make sure the facts are in front of it before it writes anything.
+      const id = 'fallback_get_week'
+      transcript.push({ role: 'assistant', text: '', calls: [{ id, name: 'get_week', args: {} }] })
+      transcript.push({ role: 'tool', id, name: 'get_week', result: weekFacts(data, previous) })
+    }
+    const args = await provider.final(transcript)
+    const { checkin, errors } = sanitizeCheckin(args, data)
+    log(`fallback ${attempt}: post_checkin${errors ? ' -> ' + errors.join('; ') : ''}`)
+    if (checkin) posted = checkin
+    else transcript.push({ role: 'user', text: `That check-in was missing things: ${errors.join('; ')}. Try again.` })
+  }
+  if (!posted) throw new Error(`The coach didn't post a check-in.`)
   return posted
+}
+
+function ollamaMessages(transcript) {
+  const messages = [{ role: 'system', content: SYSTEM }]
+  for (const t of transcript) {
+    if (t.role === 'user') messages.push({ role: 'user', content: t.text })
+    // Keep any thinking-aloud short so it doesn't crowd the context on later turns.
+    if (t.role === 'assistant') messages.push({ role: 'assistant', content: (t.text || '').slice(0, 300), ...(t.calls.length ? { tool_calls: t.calls.map((c) => ({ function: { name: c.name, arguments: c.args } })) } : {}) })
+    if (t.role === 'tool') messages.push({ role: 'tool', tool_name: t.name, content: JSON.stringify(t.result) })
+  }
+  return messages
+}
+
+function ollamaResult(json, started) {
+  const msg = json.message ?? {}
+  const text = String(msg.content ?? '').replace(/<think>[\s\S]*?(<\/think>|$)/g, '').trim()
+  console.log(`  model: ${((Date.now() - started) / 1000).toFixed(0)}s, ${json.prompt_eval_count ?? '?'} tokens in, ${json.eval_count ?? '?'} out, ${msg.tool_calls?.length ?? 0} tool calls${text ? `, said: ${text.slice(0, 120)}` : ''}`)
+  return {
+    text,
+    calls: (msg.tool_calls ?? []).map((c, i) => ({
+      id: `call_${Date.now()}_${i}`,
+      name: c.function?.name,
+      args: typeof c.function?.arguments === 'string' ? safeParse(c.function.arguments) : (c.function?.arguments ?? {}),
+    })),
+  }
 }
 
 function safeParse(s) {
@@ -350,6 +393,6 @@ async function main() {
   console.log('Saved public/coach.json')
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((err) => { console.error(err.message); process.exit(1) })
 }

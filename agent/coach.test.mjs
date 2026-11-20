@@ -76,6 +76,26 @@ test('an agent that never posts fails loudly', async () => {
   await assert.rejects(runCoach({ data, previous: [], provider: model, log: quiet }), /didn't post/)
 })
 
+test('a model that only talks gets the facts and a structured-output fallback', async () => {
+  const model = scripted([{ text: 'Okay, let me think about this week...' }])
+  let finalSaw = null
+  model.final = async (transcript) => {
+    finalSaw = transcript
+    return good
+  }
+  const out = await runCoach({ data, previous: [], provider: model, log: quiet })
+  assert.equal(out.headline, good.headline)
+  assert.ok(finalSaw.some((t) => t.role === 'tool' && t.name === 'get_week' && t.result.running), 'facts were added before the fallback')
+})
+
+test('a bad fallback gets one more try, then fails', async () => {
+  const model = scripted([{ text: 'Thinking...' }])
+  let tries = 0
+  model.final = async () => { tries++; return { headline: 'x' } }
+  await assert.rejects(runCoach({ data, previous: [], provider: model, log: quiet }), /didn't post/)
+  assert.equal(tries, 2)
+})
+
 test('long text is trimmed', () => {
   const { checkin } = sanitizeCheckin({ ...good, headline: 'x'.repeat(200) }, data)
   assert.ok(checkin.headline.length <= 90)
@@ -146,7 +166,6 @@ test('Ollama requests carry the tools and send results back by tool name', async
   }
   assert.equal(bodies[0].stream, false)
   assert.equal(bodies[0].think, false)
-  assert.match(bodies[0].messages[0].content, /no_think/)
   assert.ok(bodies[0].tools.every((t) => t.type === 'function' && t.function.name))
   const msgs = bodies[1].messages
   const assistant = msgs.find((m) => m.role === 'assistant')

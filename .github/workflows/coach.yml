@@ -24,7 +24,7 @@ jobs:
     timeout-minutes: 45
     env:
       TZ: America/Toronto
-      COACH_MODEL: qwen3:4b
+      COACH_MODEL: llama3.2:3b
       OLLAMA_MODELS: /home/runner/.ollama/models
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +46,7 @@ jobs:
           nohup ollama serve > /tmp/ollama.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 1; done
 
-      # Keep the model download (about 2.5 GB) between weeks.
+      # Keep the model download (about 2 GB) between weeks.
       - uses: actions/cache@v4
         with:
           path: /home/runner/.ollama/models
