@@ -21,9 +21,11 @@ concurrency:
 jobs:
   coach:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 40
     env:
       TZ: America/Toronto
+      COACH_MODEL: qwen3:4b
+      OLLAMA_MODELS: /home/runner/.ollama/models
     steps:
       - uses: actions/checkout@v4
 
@@ -34,12 +36,33 @@ jobs:
       - name: Test the agent's guardrails
         run: node --test agent/coach.test.mjs
 
+      # The model runs right here on the runner, so there's no API, key or bill.
+      - name: Install Ollama
+        run: |
+          curl -fsSL https://ollama.com/install.sh | sh
+          # The installer starts a system service; run our own as this user instead.
+          sudo systemctl stop ollama 2>/dev/null || true
+          mkdir -p "$OLLAMA_MODELS"
+          nohup ollama serve > /tmp/ollama.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:11434/api/version && break; sleep 1; done
+
+      # Keep the model download (about 2.5 GB) between weeks.
+      - uses: actions/cache@v4
+        with:
+          path: /home/runner/.ollama/models
+          key: ollama-${{ env.COACH_MODEL }}
+
+      - name: Get the model
+        run: ollama pull "$COACH_MODEL"
+
       - name: Run the coach
         env:
-          # Add this under Settings > Secrets and variables > Actions.
-          # Until it exists, the coach skips the week instead of failing.
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          COACH_PROVIDER: ollama
         run: node agent/coach.mjs
+
+      - name: Ollama log (if something went wrong)
+        if: failure()
+        run: tail -50 /tmp/ollama.log || true
 
       - name: Publish the check-in
         run: |

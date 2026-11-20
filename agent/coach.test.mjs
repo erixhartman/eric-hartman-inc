@@ -114,3 +114,31 @@ test('Claude requests are shaped the way the Messages API expects', async () => 
   assert.deepEqual(results.content.map((b) => [b.type, b.tool_use_id]), [['tool_result', 't1'], ['tool_result', 't2']])
   assert.equal(bodies[1].messages.length, 3)
 })
+
+test('Ollama requests carry the tools and send results back by tool name', async () => {
+  const bodies = []
+  const replies = [
+    { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'get_running_summary', arguments: {} } }] } },
+    { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'post_checkin', arguments: JSON.stringify(good) } }] } },
+  ]
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    assert.match(url, /\/api\/chat$/)
+    bodies.push(JSON.parse(init.body))
+    return new Response(JSON.stringify(replies[bodies.length - 1]), { status: 200, headers: { 'content-type': 'application/json' } })
+  }
+  try {
+    const out = await runCoach({ data, previous: [], provider: providers.ollama, log: quiet })
+    assert.equal(out.headline, good.headline, 'string arguments are parsed too')
+  } finally {
+    globalThis.fetch = realFetch
+  }
+  assert.equal(bodies[0].stream, false)
+  assert.equal(bodies[0].think, false)
+  assert.ok(bodies[0].tools.every((t) => t.type === 'function' && t.function.name))
+  const msgs = bodies[1].messages
+  assert.equal(msgs[0].role, 'system')
+  const toolMsg = msgs.find((m) => m.role === 'tool')
+  assert.equal(toolMsg.tool_name, 'get_running_summary')
+  assert.ok(JSON.parse(toolMsg.content).currentPhase)
+})

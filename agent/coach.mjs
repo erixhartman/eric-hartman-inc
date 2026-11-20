@@ -9,8 +9,11 @@
 //   node agent/coach.mjs --dry-run  print the check-in without saving it
 //
 // Environment:
-//   ANTHROPIC_API_KEY  the Claude API key; without it the coach skips the week
-//   COACH_MODEL     Claude model id (default claude-haiku-5-5)
+//   COACH_PROVIDER  ollama (default: a free open model running inside the
+//                   GitHub Action) or anthropic (Claude, needs a paid key)
+//   COACH_MODEL     model id; defaults per provider below
+//   OLLAMA_HOST     where Ollama is listening (default http://127.0.0.1:11434)
+//   ANTHROPIC_API_KEY  only for the anthropic provider
 //   COACH_DATE      pretend today is this date (YYYY-MM-DD), for testing
 //   COACH_MOCK      path to a scripted-model file, for tests (no network)
 
@@ -23,7 +26,9 @@ const OUT_PATH = new URL('../public/coach.json', import.meta.url)
 const MAX_STEPS = 8
 const KEEP_UPDATES = 30
 
-const MODEL = process.env.COACH_MODEL || 'claude-haiku-5-5'
+const PROVIDER = process.env.COACH_PROVIDER || 'ollama'
+const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'qwen3:4b')
+const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://127.0.0.1:11434'
 const DRY_RUN = process.argv.includes('--dry-run')
 const NOW = process.env.COACH_DATE || M.today()
 
@@ -211,7 +216,36 @@ async function postJSON(url, headers, body) {
 
 /** Each provider takes the running transcript and returns { text, calls: [{id, name, args}] }. */
 export const providers = {
-  // Claude, through the Anthropic Messages API.
+  // Ollama: an open model running on the same machine. Free, no key, no account.
+  ollama: {
+    async step(transcript) {
+      const messages = [{ role: 'system', content: SYSTEM }]
+      for (const t of transcript) {
+        if (t.role === 'user') messages.push({ role: 'user', content: t.text })
+        if (t.role === 'assistant') messages.push({ role: 'assistant', content: t.text || '', ...(t.calls.length ? { tool_calls: t.calls.map((c) => ({ function: { name: c.name, arguments: c.args } })) } : {}) })
+        if (t.role === 'tool') messages.push({ role: 'tool', tool_name: t.name, content: JSON.stringify(t.result) })
+      }
+      const json = await postJSON(`${OLLAMA_HOST}/api/chat`, {}, {
+        model: MODEL,
+        messages,
+        tools: TOOLS.map((t) => ({ type: 'function', function: t })),
+        stream: false,
+        think: false, // skip the long hidden reasoning; it's slow on a CPU
+        options: { temperature: 0.2, num_ctx: 12288 },
+      })
+      const msg = json.message ?? {}
+      return {
+        text: msg.content ?? '',
+        calls: (msg.tool_calls ?? []).map((c, i) => ({
+          id: `call_${Date.now()}_${i}`,
+          name: c.function?.name,
+          args: typeof c.function?.arguments === 'string' ? safeParse(c.function.arguments) : (c.function?.arguments ?? {}),
+        })),
+      }
+    },
+  },
+
+  // Claude, through the Anthropic Messages API (paid).
   anthropic: {
     async step(transcript) {
       const key = process.env.ANTHROPIC_API_KEY
@@ -270,11 +304,15 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
         }
       } else result = { error: `No tool called ${call.name}.` }
       log(`step ${step}: ${call.name}${result?.error ? ' -> ' + result.error : ''}`)
-      transcript.push({ role: 'tool', id: call.id, result })
+      transcript.push({ role: 'tool', id: call.id, name: call.name, result })
     }
   }
   if (!posted) throw new Error(`The coach didn't post a check-in within ${MAX_STEPS} steps.`)
   return posted
+}
+
+function safeParse(s) {
+  try { return JSON.parse(s || '{}') } catch { return { __unparseable: String(s) } }
 }
 
 async function main() {
@@ -284,14 +322,11 @@ async function main() {
   const weekOf = M.weekStart(NOW)
   const previous = store.updates.filter((u) => u.weekOf !== weekOf)
 
-  let provider = providers.anthropic
+  let provider = providers[PROVIDER]
   if (process.env.COACH_MOCK) provider = (await import(pathToFileURL(process.env.COACH_MOCK).href)).default
-  else if (!process.env.ANTHROPIC_API_KEY) {
-    console.log('No ANTHROPIC_API_KEY yet, so the coach is skipping this week. Add it as a repository secret to turn it on.')
-    return
-  }
+  if (!provider) throw new Error(`Unknown COACH_PROVIDER "${PROVIDER}". Use ollama or anthropic.`)
 
-  console.log(`Sunday coach: ${NOW}, ${MODEL}${DRY_RUN ? ' (dry run)' : ''}`)
+  console.log(`Sunday coach: ${NOW}, ${PROVIDER} ${MODEL}${DRY_RUN ? ' (dry run)' : ''}`)
   const checkin = await runCoach({ data, previous, provider })
   const update = { weekOf, date: NOW, createdAt: new Date().toISOString(), model: process.env.COACH_MOCK ? 'mock' : MODEL, ...checkin }
 
