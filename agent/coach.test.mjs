@@ -3,7 +3,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { runCoach, sanitizeCheckin } from './coach.mjs'
+import { runCoach, sanitizeCheckin, providers } from './coach.mjs'
 
 const data = JSON.parse(await readFile(new URL('../public/data.json', import.meta.url), 'utf8'))
 const quiet = () => {}
@@ -79,4 +79,38 @@ test('an agent that never posts fails loudly', async () => {
 test('long text is trimmed', () => {
   const { checkin } = sanitizeCheckin({ ...good, headline: 'x'.repeat(200) }, data)
   assert.ok(checkin.headline.length <= 90)
+})
+
+test('Claude requests are shaped the way the Messages API expects', async () => {
+  const bodies = []
+  const replies = [
+    { content: [{ type: 'text', text: 'Looking at the week.' }, { type: 'tool_use', id: 't1', name: 'get_running_summary', input: {} }, { type: 'tool_use', id: 't2', name: 'get_reading_summary', input: {} }] },
+    { content: [{ type: 'tool_use', id: 't3', name: 'post_checkin', input: good }] },
+  ]
+  const realFetch = globalThis.fetch
+  process.env.ANTHROPIC_API_KEY = 'test-key'
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, 'https://api.anthropic.com/v1/messages')
+    assert.equal(init.headers['x-api-key'], 'test-key')
+    assert.ok(init.headers['anthropic-version'])
+    bodies.push(JSON.parse(init.body))
+    return new Response(JSON.stringify(replies[bodies.length - 1]), { status: 200, headers: { 'content-type': 'application/json' } })
+  }
+  try {
+    const out = await runCoach({ data, previous: [], provider: providers.anthropic, log: quiet })
+    assert.equal(out.headline, good.headline)
+  } finally {
+    globalThis.fetch = realFetch
+    delete process.env.ANTHROPIC_API_KEY
+  }
+  const first = bodies[0]
+  assert.equal(typeof first.system, 'string')
+  assert.ok(first.tools.every((t) => t.name && t.input_schema?.type === 'object'))
+  // Second request: assistant tool_use blocks, then one user turn holding a tool_result for each.
+  const [user1, assistant, results] = bodies[1].messages
+  assert.equal(user1.role, 'user')
+  assert.deepEqual(assistant.content.filter((b) => b.type === 'tool_use').map((b) => b.id), ['t1', 't2'])
+  assert.equal(results.role, 'user')
+  assert.deepEqual(results.content.map((b) => [b.type, b.tool_use_id]), [['tool_result', 't1'], ['tool_result', 't2']])
+  assert.equal(bodies[1].messages.length, 3)
 })

@@ -9,10 +9,8 @@
 //   node agent/coach.mjs --dry-run  print the check-in without saving it
 //
 // Environment:
-//   COACH_PROVIDER  github (default, free GitHub Models tier) or anthropic
-//   COACH_MODEL     model id; defaults per provider below
-//   GITHUB_TOKEN    used by the github provider (needs models: read)
-//   ANTHROPIC_API_KEY  used by the anthropic provider
+//   ANTHROPIC_API_KEY  the Claude API key; without it the coach skips the week
+//   COACH_MODEL     Claude model id (default claude-haiku-5-5)
 //   COACH_DATE      pretend today is this date (YYYY-MM-DD), for testing
 //   COACH_MOCK      path to a scripted-model file, for tests (no network)
 
@@ -25,8 +23,7 @@ const OUT_PATH = new URL('../public/coach.json', import.meta.url)
 const MAX_STEPS = 8
 const KEEP_UPDATES = 30
 
-const PROVIDER = process.env.COACH_PROVIDER || 'github'
-const MODEL = process.env.COACH_MODEL || (PROVIDER === 'anthropic' ? 'claude-haiku-5-5' : 'openai/gpt-4.1-mini')
+const MODEL = process.env.COACH_MODEL || 'claude-haiku-5-5'
 const DRY_RUN = process.argv.includes('--dry-run')
 const NOW = process.env.COACH_DATE || M.today()
 
@@ -213,34 +210,8 @@ async function postJSON(url, headers, body) {
 }
 
 /** Each provider takes the running transcript and returns { text, calls: [{id, name, args}] }. */
-const providers = {
-  // GitHub Models: OpenAI-style chat completions, free and rate-limited.
-  github: {
-    async step(transcript) {
-      const token = process.env.GITHUB_TOKEN
-      if (!token) throw new Error('GITHUB_TOKEN is not set. In Actions, grant the workflow "models: read".')
-      const messages = [{ role: 'system', content: SYSTEM }]
-      for (const t of transcript) {
-        if (t.role === 'user') messages.push({ role: 'user', content: t.text })
-        if (t.role === 'assistant') messages.push({ role: 'assistant', content: t.text || null, ...(t.calls.length ? { tool_calls: t.calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })) } : {}) })
-        if (t.role === 'tool') messages.push({ role: 'tool', tool_call_id: t.id, content: JSON.stringify(t.result) })
-      }
-      const json = await postJSON('https://models.github.ai/inference/chat/completions', { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' }, {
-        model: MODEL,
-        messages,
-        tools: TOOLS.map((t) => ({ type: 'function', function: t })),
-        tool_choice: 'auto',
-        temperature: 0.4,
-      })
-      const msg = json.choices?.[0]?.message ?? {}
-      return {
-        text: msg.content ?? '',
-        calls: (msg.tool_calls ?? []).map((c) => ({ id: c.id, name: c.function.name, args: safeParse(c.function.arguments) })),
-      }
-    },
-  },
-
-  // Anthropic Messages API, for when there's an API key. Same tools, Claude's format.
+export const providers = {
+  // Claude, through the Anthropic Messages API.
   anthropic: {
     async step(transcript) {
       const key = process.env.ANTHROPIC_API_KEY
@@ -269,10 +240,6 @@ const providers = {
       }
     },
   },
-}
-
-function safeParse(s) {
-  try { return JSON.parse(s || '{}') } catch { return { __unparseable: String(s) } }
 }
 
 // ---------- the loop ----------
@@ -317,11 +284,14 @@ async function main() {
   const weekOf = M.weekStart(NOW)
   const previous = store.updates.filter((u) => u.weekOf !== weekOf)
 
-  let provider = providers[PROVIDER]
+  let provider = providers.anthropic
   if (process.env.COACH_MOCK) provider = (await import(pathToFileURL(process.env.COACH_MOCK).href)).default
-  if (!provider) throw new Error(`Unknown COACH_PROVIDER "${PROVIDER}". Use github or anthropic.`)
+  else if (!process.env.ANTHROPIC_API_KEY) {
+    console.log('No ANTHROPIC_API_KEY yet, so the coach is skipping this week. Add it as a repository secret to turn it on.')
+    return
+  }
 
-  console.log(`Sunday coach: ${NOW}, ${PROVIDER} ${MODEL}${DRY_RUN ? ' (dry run)' : ''}`)
+  console.log(`Sunday coach: ${NOW}, ${MODEL}${DRY_RUN ? ' (dry run)' : ''}`)
   const checkin = await runCoach({ data, previous, provider })
   const update = { weekOf, date: NOW, createdAt: new Date().toISOString(), model: process.env.COACH_MOCK ? 'mock' : MODEL, ...checkin }
 

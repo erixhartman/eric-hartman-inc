@@ -22,15 +22,17 @@ The code, not the model, decides what can be posted:
 
 ## Cost
 
-$0. It runs on [GitHub Models](https://docs.github.com/en/github-models)' free, rate-limited tier, using the workflow's built-in token (`models: read`), on a public repo where Actions minutes are free. The default model is `openai/gpt-4.1-mini`.
+It runs on Claude Haiku 5.5 through the Anthropic API. At $0.10 per million input tokens and $0.50 per million output tokens, a weekly check-in should cost a fraction of a cent (an estimate, not a measured figure). GitHub Actions is free on a public repo.
 
-To switch to Claude, add an `ANTHROPIC_API_KEY` repository secret and set `COACH_PROVIDER: anthropic` in `.github/workflows/coach.yml`. The Claude path is written but hasn't been run against the live API yet.
+It needs an `ANTHROPIC_API_KEY` repository secret. Without one, the workflow still runs, logs that it's skipping, and posts nothing.
+
+(It was first built for GitHub Models' free tier, which turned out to have been retired on July 30, 2026.)
 
 ## Running it
 
 - **On a schedule:** Sundays at 23:15 UTC (6:15 pm in Toronto in winter).
 - **On demand:** the "Run workflow" button on the Actions tab, or edit `agent/RUN` and push.
-- **Locally, without saving:** `GITHUB_TOKEN=<a token with models:read> node agent/coach.mjs --dry-run`
-- **Tests:** `node --test agent/coach.test.mjs` runs the loop and guardrails against a scripted fake model, with no network. The workflow runs them before every check-in.
+- **Locally, without saving:** `ANTHROPIC_API_KEY=... node agent/coach.mjs --dry-run`
+- **Tests:** `node --test agent/coach.test.mjs` runs the loop, the guardrails and the shape of the Claude requests against scripted fakes, with no network. The workflow runs them before every check-in.
 
 Re-running in the same week replaces that week's check-in. The last 30 are kept.

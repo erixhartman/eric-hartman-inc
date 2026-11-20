@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: write   # commit public/coach.json
-  models: read      # call GitHub Models with the built-in token, free and rate-limited
 
 concurrency:
   group: sunday-coach
@@ -37,10 +36,8 @@ jobs:
 
       - name: Run the coach
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # To switch to Claude: add an ANTHROPIC_API_KEY repository secret and
-          # change COACH_PROVIDER to anthropic.
-          COACH_PROVIDER: github
+          # Add this under Settings > Secrets and variables > Actions.
+          # Until it exists, the coach skips the week instead of failing.
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node agent/coach.mjs
 
@@ -49,7 +46,7 @@ jobs:
           # Committed under Eric's GitHub no-reply address so Vercel deploys it.
           git config user.name "Eric Hartman (Sunday coach)"
           git config user.email "erixhartman@users.noreply.github.com"
-          git add public/coach.json
+          [ -f public/coach.json ] && git add public/coach.json
           if git diff --cached --quiet; then
             echo "No change to publish."
             exit 0
