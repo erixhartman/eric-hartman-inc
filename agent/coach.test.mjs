@@ -3,10 +3,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { runCoach, sanitizeCheckin, providers } from './coach.mjs'
+import { runCoach, sanitizeCheckin, providers, weekFacts } from './coach.mjs'
 
 const data = JSON.parse(await readFile(new URL('../public/data.json', import.meta.url), 'utf8'))
 const quiet = () => {}
+const facts = weekFacts(data, [])
 
 /** A fake model that replays a list of turns, recording what it was shown. */
 function scripted(turns) {
@@ -40,14 +41,14 @@ test('the facts come first, then the agent posts once', async () => {
   // Before its first turn, the model already had the week's numbers.
   const week = model.seen[0].find((t) => t.role === 'tool').result
   assert.equal(week.lastTargetsVsActual.runs.target, 2)
-  assert.ok(week.reading.paceCheck.verdict)
+  assert.match(week.reading.paceCheck.seasonSoFar, /pace/)
   assert.ok(week.running.currentPhase, 'running summary was returned')
   assert.equal(typeof week.reading.pagesNeededPerWeek, 'number', 'reading summary was returned')
   assert.equal(week.previousCheckins[0].headline, 'Last week', 'past check-ins were returned')
 })
 
 test('targets outside the limits are pulled back and reported', () => {
-  const { checkin } = sanitizeCheckin({ ...good, targets: { runs: 12, longestRunMinutes: 120, pages: 5 } }, data)
+  const { checkin } = sanitizeCheckin({ ...good, message: 'Keep going, and build the long run slowly.', targets: { runs: 12, longestRunMinutes: 120, pages: 5 } }, data, facts)
   assert.equal(checkin.targets.runs, 6)
   assert.ok(checkin.targets.longestRunMinutes <= 15, 'long run capped near the longest so far')
   assert.ok(checkin.targets.pages > 5, 'pages raised to most of the needed pace')
@@ -97,13 +98,19 @@ test('a bad fallback gets one more try, then fails', async () => {
 })
 
 test('vague writing is sent back', () => {
-  const { errors } = sanitizeCheckin({ ...good, headline: 'Eric', running: { status: 'good', note: 'Keep it up!' } }, data)
+  const { errors } = sanitizeCheckin({ ...good, headline: 'Eric', running: { status: 'good', note: 'Keep it up!' } }, data, facts)
   assert.ok(errors.some((e) => /headline/.test(e)))
   assert.ok(errors.some((e) => /running.note must cite/.test(e)))
 })
 
+test('made-up numbers are sent back, real ones pass', () => {
+  assert.equal(sanitizeCheckin(good, data, facts).errors, undefined)
+  const { errors } = sanitizeCheckin({ ...good, running: { status: 'minor', note: 'A 45-minute long run and 99 km this week.' } }, data, facts)
+  assert.ok(errors.some((e) => /running.note mentions 45, 99/.test(e)), errors.join(' | '))
+})
+
 test('long text is trimmed', () => {
-  const { checkin } = sanitizeCheckin({ ...good, headline: 'x'.repeat(200) }, data)
+  const { checkin } = sanitizeCheckin({ ...good, headline: 'x'.repeat(200) }, data, facts)
   assert.ok(checkin.headline.length <= 90)
 })
 

@@ -75,15 +75,16 @@ function readingSummary(data) {
   }
 }
 
-function weekFacts(data, previous) {
+export function weekFacts(data, previous) {
   const running = runningSummary(data)
   const reading = readingSummary(data)
   const s = M.readingStats(data.books, data.startDate, NOW)
+  const neededWeek = Math.ceil(s.needPerDay * 7)
   reading.paceCheck = {
-    pagesPerDaySoFar: Math.round(s.actualPerDay),
-    pagesNeededPerDay: Math.ceil(s.needPerDay),
-    verdict: s.actualPerDay >= s.needPerDay ? 'ahead of the needed pace' : 'behind the needed pace',
+    seasonSoFar: `${Math.round(s.actualPerDay)} pages a day since the start, against ${Math.ceil(s.needPerDay)} needed: ${s.actualPerDay >= s.needPerDay ? 'ahead of pace' : 'behind pace'}`,
+    thisWeek: `${reading.thisWeek.pages} pages this week, against ${neededWeek} needed per week: ${reading.thisWeek.pages >= neededWeek ? 'on pace this week' : 'short this week'}`,
   }
+  running.planCheck = `${running.thisWeek.runs} run${running.thisWeek.runs === 1 ? '' : 's'} this week. ${running.currentPhase.plan}. ${running.currentPhase.status}.`
   const last = previous[0]
   const lastTargetsVsActual = last?.targets
     ? {
@@ -98,6 +99,28 @@ function weekFacts(data, previous) {
 // ---------- guardrails: what a check-in may contain ----------
 
 const STATUSES = ['good', 'minor', 'major']
+const WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 }
+
+/** Numbers written in text, including small ones spelled out ("three runs"). */
+function numbersIn(text) {
+  const t = String(text ?? '').toLowerCase().replace(/(\d),(\d{3})/g, '$1$2')
+  const out = (t.match(/\d+(\.\d+)?/g) ?? []).map(Number)
+  for (const [w, n] of Object.entries(WORDS)) if (new RegExp(`\\b${w}\\b`).test(t)) out.push(n)
+  return out
+}
+
+/** Every number that appears anywhere in the facts (values and inside strings), plus the proposed targets. */
+function allowedNumbers(facts, targets) {
+  const set = new Set([0, 1, 12, 21.1, 2026, 2027])
+  const walk = (v) => {
+    if (typeof v === 'number') { set.add(v); set.add(Math.round(v)) }
+    else if (typeof v === 'string') numbersIn(v).forEach((n) => set.add(n))
+    else if (v && typeof v === 'object') Object.values(v).forEach(walk)
+  }
+  walk(facts)
+  walk(targets)
+  return set
+}
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n))
 const trimTo = (s, n) => {
   const t = String(s ?? '').replace(/\s+/g, ' ').trim()
@@ -105,7 +128,7 @@ const trimTo = (s, n) => {
 }
 
 /** Validate and bound a proposed check-in. Returns the saved shape plus notes on anything adjusted. */
-export function sanitizeCheckin(input, data) {
+export function sanitizeCheckin(input, data, facts) {
   const adjusted = []
   const errors = []
   const run = runningSummary(data)
@@ -117,8 +140,15 @@ export function sanitizeCheckin(input, data) {
   }
   if (!input?.headline) errors.push('headline is required')
   else if (String(input.headline).trim().length < 20) errors.push('headline must be a full sentence about the week, at least 20 characters')
+  if (!input?.message || String(input.message).trim().length < 20) errors.push('message must be a short note to Eric about next week')
   for (const key of ['running', 'reading']) {
     if (input?.[key]?.note && !/\d/.test(input[key].note)) errors.push(`${key}.note must cite at least one number from get_week`)
+  }
+  // Every number it writes has to come from the facts, or be one of the targets it's setting.
+  const allowed = allowedNumbers(facts ?? {}, input?.targets ?? {})
+  for (const [field, text] of [['headline', input?.headline], ['running.note', input?.running?.note], ['reading.note', input?.reading?.note], ['message', input?.message]]) {
+    const bad = numbersIn(text).filter((n) => !allowed.has(n))
+    if (bad.length) errors.push(`${field} mentions ${bad.join(', ')}, which isn't in get_week or your targets. Use only real numbers.`)
   }
   if (errors.length) return { errors }
 
@@ -208,14 +238,9 @@ Every Sunday you review the week and post a check-in on the tracker. Anyone can 
 
 How to work:
 1. You've already called get_week; its result is above.
-2. Compare the week with the plan (running.currentPhase), the reading pace (reading.paceCheck) and last week's targets (lastTargetsVsActual).
+2. Compare the week with the plan (running.planCheck), the reading pace (reading.paceCheck) and last week's targets (lastTargetsVsActual).
+   Base the reading status on the season-so-far pace; mention this week too.
 3. Call post_checkin exactly once with a status for each goal and next week's targets.
-
-Example of the tone only. These numbers are made up; never copy them:
-headline: "Three runs and a new long run, but the books slipped."
-running note: "Three runs and a 22-minute long run, up from 18. Right on plan for December."
-reading note: "Only 90 pages against 240 needed this week, so the pace slipped behind."
-message: "Keep the three runs and push the long one to 25 minutes. Find 35 pages a day to catch up."
 
 Rules:
 - Use only numbers that came from get_week. Never invent runs, pages, books, dates or paces. Each note must cite at least one of those numbers.
@@ -328,7 +353,8 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
   // The first turn is always the lookup, like forcing tool_choice on a hosted API:
   // small models otherwise tend to write before they've read anything.
   transcript.push({ role: 'assistant', text: '', calls: [{ id: 'first_get_week', name: 'get_week', args: {} }] })
-  transcript.push({ role: 'tool', id: 'first_get_week', name: 'get_week', result: weekFacts(data, previous) })
+  const facts = weekFacts(data, previous)
+  transcript.push({ role: 'tool', id: 'first_get_week', name: 'get_week', result: facts })
   log('step 0: get_week (always first)')
 
   for (let step = 1; step <= MAX_STEPS && !posted; step++) {
@@ -341,11 +367,11 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
     }
     for (const call of calls) {
       let result
-      if (call.name === 'get_week') result = weekFacts(data, previous)
+      if (call.name === 'get_week') result = facts
       else if (call.name === 'post_checkin') {
         if (posted) result = { error: 'Already posted this week.' }
         else {
-          const { checkin, errors } = sanitizeCheckin(call.args, data)
+          const { checkin, errors } = sanitizeCheckin(call.args, data, facts)
           if (errors) result = { error: 'Not posted. Fix and call again.', problems: errors }
           else { posted = checkin; result = { posted: true, targets: checkin.targets, adjusted: checkin.adjusted } }
         }
@@ -357,7 +383,7 @@ export async function runCoach({ data, previous, provider, log = console.log }) 
   // A provider that supports structured output gets two constrained tries to finish.
   for (let attempt = 1; !posted && provider.final && attempt <= 2; attempt++) {
     const args = await provider.final(transcript)
-    const { checkin, errors } = sanitizeCheckin(args, data)
+    const { checkin, errors } = sanitizeCheckin(args, data, facts)
     log(`fallback ${attempt}: post_checkin${errors ? ' -> ' + errors.join('; ') : ''}`)
     if (checkin) posted = checkin
     else transcript.push({ role: 'user', text: `That check-in was missing things: ${errors.join('; ')}. Try again.` })
