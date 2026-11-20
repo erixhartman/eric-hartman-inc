@@ -1,0 +1,28 @@
+{
+  "updates": [
+    {
+      "weekOf": "2026-11-16",
+      "date": "2026-11-20",
+      "createdAt": "2026-11-20T18:49:57.793Z",
+      "model": "llama3.2:3b",
+      "headline": "Eric",
+      "running": {
+        "status": "minor",
+        "note": "Take it easy, Eric! If you can, try to get in a 10-minute run on the treadmill this week."
+      },
+      "reading": {
+        "status": "minor",
+        "note": "Keep reading, Eric! Try to get in 50 pages this week. You're getting close to finishing up the first book in the series."
+      },
+      "message": "Keep up the good work, Eric!",
+      "targets": {
+        "runs": 2,
+        "longestRunMinutes": 15,
+        "pages": 188
+      },
+      "adjusted": [
+        "pages: asked for 50, set to 188 (allowed 188 to 470)"
+      ]
+    }
+  ]
+}
