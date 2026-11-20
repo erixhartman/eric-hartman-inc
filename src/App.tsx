@@ -4,6 +4,7 @@ import {
   bookOrder, dailyActivity, daysBetween, fmtDate, pace, readingStats, seasonWeeks, today, trainingPhases, weekStart, weeklyTotals,
 } from './model'
 import { Admin } from './Admin'
+import { ServiceUpdate, type CoachUpdate } from './Coach'
 import { ActivityStrip, SeasonGrid, Spark } from './Momentum'
 
 // Visual reference: a Toronto subway line diagram. Line 1 (yellow) is the half
@@ -26,6 +27,7 @@ function Roundel({ n }: { n: 1 | 2 }) {
 export default function App() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState('')
+  const [coach, setCoach] = useState<CoachUpdate[]>([])
   const editing = useHash() === '#edit'
 
   useEffect(() => {
@@ -33,6 +35,11 @@ export default function App() {
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then(setData)
       .catch(() => setError("The progress data didn't load. Refresh to try again."))
+    // The coach's check-ins are optional: no file yet means no service update.
+    fetch('/coach.json', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { updates: [] }))
+      .then((j) => setCoach(Array.isArray(j.updates) ? j.updates : []))
+      .catch(() => setCoach([]))
   }, [])
 
   return (
@@ -45,6 +52,7 @@ export default function App() {
             <span>Eric Hartman Inc.</span>
           </a>
           <nav aria-label="Sections">
+            {coach.length > 0 && <a href="#coach">Service update</a>}
             <a href="#kr1">Line 1</a>
             <a href="#kr2">Line 2</a>
             <a href="#season">The record</a>
@@ -58,7 +66,7 @@ export default function App() {
         {data && (
           <>
             {editing && <Admin data={data} onChange={setData} />}
-            <Report data={data} />
+            <Report data={data} coach={coach} />
           </>
         )}
       </main>
@@ -78,7 +86,7 @@ export default function App() {
   )
 }
 
-function Report({ data }: { data: Data }) {
+function Report({ data, coach }: { data: Data; coach: CoachUpdate[] }) {
   const now = today()
   const runs = useMemo(() => [...data.runs].sort((a, b) => b.date.localeCompare(a.date)), [data.runs])
   const toRace = Math.max(0, daysBetween(now, RACE_DAY))
@@ -111,6 +119,7 @@ function Report({ data }: { data: Data }) {
         </aside>
       </section>
 
+      <ServiceUpdate updates={coach} />
       <Line1 data={data} runs={runs} now={now} weeks={weeks} />
       <Line2 books={data.books} log={data.reading ?? []} stats={reading} weeks={weeks} />
       <Season data={data} now={now} />

@@ -231,6 +231,39 @@ input:focus, select:focus { outline: none; border-color: var(--ink); }
 .admin-runs ul { list-style: none; padding: 0; margin: 10px 0 0; }
 .admin-runs li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: 15px; }
 
+
+/* Sunday coach: a subway-style service update */
+.service { padding-block: 56px; }
+.svc-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px 40px; flex-wrap: wrap; margin-bottom: 18px; }
+.svc-top .kicker { margin-bottom: 4px; }
+.svc-top h2 { margin: 0; font-size: clamp(28px, 3.2vw, 40px); line-height: 1.1; }
+.svc-headline { margin: 0; font-size: 20px; font-weight: 500; max-width: 560px; }
+.svc-board { background: var(--ink); color: #fff; border-radius: 10px; padding: 8px 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }
+.svc-line { display: flex; gap: 16px; align-items: flex-start; padding: 18px 0; }
+.svc-line .roundel { width: 40px; height: 40px; font-size: 21px; }
+.svc-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.svc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.svc-name { font-size: 15px; color: #c9c9c9; }
+.svc-status { display: inline-flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 600; }
+.svc-mark { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 5px; border-radius: 12px; font-size: 14px; font-weight: 700; color: var(--ink); }
+.svc-status.good { color: #5fd08f; }
+.svc-status.good .svc-mark { background: #5fd08f; }
+.svc-status.minor { color: var(--l1); }
+.svc-status.minor .svc-mark { background: var(--l1); }
+.svc-status.major { color: #ff7a6b; }
+.svc-status.major .svc-mark { background: #ff7a6b; }
+.svc-note { font-size: 16px; line-height: 1.45; color: #ececec; }
+.svc-bottom { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px 40px; margin-top: 20px; align-items: start; }
+.svc-message { margin: 0; font-size: 18px; line-height: 1.5; }
+.svc-targets { display: flex; flex-wrap: wrap; gap: 6px 24px; align-items: baseline; padding: 14px 18px; border-radius: 10px; background: var(--panel); }
+.svc-targets-title { width: 100%; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.svc-targets strong { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 4px; }
+.service .small-note { margin-top: 16px; }
+.svc-earlier { margin-top: 10px; }
+.svc-earlier summary { cursor: pointer; color: var(--ink-2); }
+.svc-earlier ul { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 10px; }
+.svc-earlier li { display: flex; flex-direction: column; gap: 2px; padding-bottom: 10px; border-bottom: 1px solid var(--rule); font-size: 15px; }
+
 /* phones: diagrams turn vertical, like a strip map on a train door */
 @media (max-width: 760px) {
   .signbar { height: 58px; }
@@ -268,6 +301,11 @@ input:focus, select:focus { outline: none; border-color: var(--ink); }
   .season-week em { font-size: 10px; padding: 0 6px; }
   .season-cells { gap: 2px; }
   .season-tot { font-size: 11px; }
+  .service { padding-block: 44px; }
+  .svc-board { grid-template-columns: 1fr; padding: 4px 16px; }
+  .svc-line + .svc-line { border-top: 1px solid #3a3a3a; }
+  .svc-status { font-size: 19px; }
+  .svc-bottom { grid-template-columns: 1fr; }
   .admin { padding: 20px 16px; }
   .admin-grid { grid-template-columns: 1fr; }
 }

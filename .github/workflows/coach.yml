@@ -1,0 +1,59 @@
+name: Sunday coach
+
+on:
+  # Sundays at 23:15 UTC: 6:15 pm in Toronto in winter, 7:15 pm in summer.
+  schedule:
+    - cron: '15 23 * * 0'
+  # The "Run workflow" button on the Actions tab.
+  workflow_dispatch:
+  # Pushing a change to agent/RUN also runs it, for a check-in on demand.
+  push:
+    branches: [main]
+    paths: ['agent/RUN']
+
+permissions:
+  contents: write   # commit public/coach.json
+  models: read      # call GitHub Models with the built-in token, free and rate-limited
+
+concurrency:
+  group: sunday-coach
+  cancel-in-progress: false
+
+jobs:
+  coach:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: America/Toronto
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test the agent's guardrails
+        run: node --test agent/coach.test.mjs
+
+      - name: Run the coach
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # To switch to Claude: add an ANTHROPIC_API_KEY repository secret and
+          # change COACH_PROVIDER to anthropic.
+          COACH_PROVIDER: github
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node agent/coach.mjs
+
+      - name: Publish the check-in
+        run: |
+          # Committed under Eric's GitHub no-reply address so Vercel deploys it.
+          git config user.name "Eric Hartman (Sunday coach)"
+          git config user.email "erixhartman@users.noreply.github.com"
+          git add public/coach.json
+          if git diff --cached --quiet; then
+            echo "No change to publish."
+            exit 0
+          fi
+          git commit -m "Coach: check-in for the week of $(node -e "const j=require('./public/coach.json');console.log(j.updates[0].weekOf)")"
+          git pull --rebase origin main
+          git push origin HEAD:main
