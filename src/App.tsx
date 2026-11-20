@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import {
-  type Book, type Data, type Run, HALF_KM, OPENING_DAY, RACE_DAY,
-  dailyActivity, daysBetween, fmtDate, pace, readingStats, seasonWeeks, today, trainingPhases, weekStart, weeklyTotals,
+  type Book, type Data, type ReadingEntry, type Run, HALF_KM, OPENING_DAY, RACE_DAY,
+  bookOrder, dailyActivity, daysBetween, fmtDate, pace, readingStats, seasonWeeks, today, trainingPhases, weekStart, weeklyTotals,
 } from './model'
 import { Admin } from './Admin'
 import { ActivityStrip, SeasonGrid, Spark } from './Momentum'
@@ -112,7 +112,7 @@ function Report({ data }: { data: Data }) {
       </section>
 
       <Line1 data={data} runs={runs} now={now} weeks={weeks} />
-      <Line2 books={data.books} stats={reading} weeks={weeks} />
+      <Line2 books={data.books} log={data.reading ?? []} stats={reading} weeks={weeks} />
       <Season data={data} now={now} />
     </>
   )
@@ -257,10 +257,9 @@ function readingSummary(stats: ReturnType<typeof readingStats>) {
   return `Reading ${stats.actualPerDay.toFixed(0)} pages a day against the ${Math.ceil(stats.needPerDay)} needed. ${onPace ? 'On pace.' : 'Behind pace.'}`
 }
 
-function Line2({ books, stats, weeks }: { books: Book[]; stats: ReturnType<typeof readingStats>; weeks: ReturnType<typeof weeklyTotals> }) {
-  // Finished books first (stops already passed), then the one in progress, then the rest in list order.
-  const rank = (b: Book) => (b.page >= b.pages ? 0 : b.page > 0 ? 1 : 2)
-  const ordered = [...books].sort((a, b) => rank(a) - rank(b) || a.id - b.id)
+function Line2({ books, log, stats, weeks }: { books: Book[]; log: ReadingEntry[]; stats: ReturnType<typeof readingStats>; weeks: ReturnType<typeof weeklyTotals> }) {
+  // Left to right in the order things actually happened: finished (by finish date), in progress (by start date), then the rest.
+  const ordered = bookOrder(books, log)
   const stateOf = (b: Book): StopState => (b.page >= b.pages ? 'done' : b.page > 0 ? 'next' : 'ahead')
   const range = `the last 8 weeks, from the week of ${fmtDate(weeks[0].start)}`
 

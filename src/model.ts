@@ -199,3 +199,28 @@ export function seasonWeeks(data: Data, now = today()) {
   }
   return weeks
 }
+
+/**
+ * Order books the way they were actually read: finished books by the date they
+ * were finished, then books in progress by the date they were started, then
+ * unstarted books in list order. Dates come from the reading log; a book with
+ * progress but no log entries sorts after the dated ones in its group, by list
+ * number, and same-day ties also fall back to list number.
+ */
+export function bookOrder(books: Book[], reading: ReadingEntry[] = []): Book[] {
+  const first = new Map<number, string>()
+  const last = new Map<number, string>()
+  for (const r of reading) {
+    if (r.pages <= 0) continue
+    if (!first.has(r.bookId) || r.date < first.get(r.bookId)!) first.set(r.bookId, r.date)
+    if (!last.has(r.bookId) || r.date > last.get(r.bookId)!) last.set(r.bookId, r.date)
+  }
+  const group = (b: Book) => (b.page >= b.pages ? 0 : b.page > 0 ? 1 : 2)
+  const key = (b: Book) => {
+    const g = group(b)
+    if (g === 0) return last.get(b.id) ?? '9999'
+    if (g === 1) return first.get(b.id) ?? '9999'
+    return ''
+  }
+  return [...books].sort((a, b) => group(a) - group(b) || key(a).localeCompare(key(b)) || a.id - b.id)
+}
