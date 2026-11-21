@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-20T22:58:27.309Z",
+  "updatedAt": "2026-11-21T02:11:02.897Z",
   "startDate": "2026-11-18",
   "runs": [
     {
@@ -23,7 +23,7 @@
       "title": "When We Cease to Understand the World",
       "author": "Benjamín Labatut",
       "pages": 188,
-      "page": 108
+      "page": 119
     },
     {
       "id": 2,
@@ -148,6 +148,11 @@
       "date": "2026-11-20",
       "bookId": 1,
       "pages": 18
+    },
+    {
+      "date": "2026-11-20",
+      "bookId": 1,
+      "pages": 11
     }
   ]
 }
