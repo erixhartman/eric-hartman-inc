@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-21T02:11:02.897Z",
+  "updatedAt": "2026-11-22T15:04:06.761Z",
   "startDate": "2026-11-18",
   "runs": [
     {
@@ -14,6 +14,13 @@
       "date": "2026-11-20",
       "km": 2.2,
       "minutes": 10.7333,
+      "where": "treadmill"
+    },
+    {
+      "id": "50f61b00-45f0-471d-a673-b8a264a37f57",
+      "date": "2026-11-22",
+      "km": 3,
+      "minutes": 14.4667,
       "where": "treadmill"
     }
   ],
