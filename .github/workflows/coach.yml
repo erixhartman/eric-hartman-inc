@@ -34,6 +34,9 @@ jobs:
           node-version: 22
 
       - name: Test the agent's guardrails
+        # Tests run on a frozen snapshot (agent/fixtures/data.json) and date, so new runs and pages can't break them.
+        env:
+          COACH_DATE: '2026-11-20'
         run: node --test agent/coach.test.mjs
 
       # The model runs right here on the runner, so there's no API, key or bill.

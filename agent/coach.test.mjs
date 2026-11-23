@@ -1,11 +1,12 @@
 // Tests for the Sunday coach, using a scripted model so nothing touches the network.
-// Run with: node --test agent/
+// Runs on a frozen snapshot of the data (fixtures/data.json, as of Nov 20, 2026) so new runs and pages can't break it.
+// Run with: COACH_DATE=2026-11-20 node --test agent/coach.test.mjs
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { runCoach, sanitizeCheckin, providers, weekFacts } from './coach.mjs'
 
-const data = JSON.parse(await readFile(new URL('../public/data.json', import.meta.url), 'utf8'))
+const data = JSON.parse(await readFile(new URL('./fixtures/data.json', import.meta.url), 'utf8'))
 const quiet = () => {}
 const facts = weekFacts(data, [])
 

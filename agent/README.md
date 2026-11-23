@@ -33,6 +33,6 @@ Claude is still available as an option: set `COACH_PROVIDER: anthropic` and add 
 - **On a schedule:** Sundays at 23:15 UTC (6:15 pm in Toronto in winter).
 - **On demand:** the "Run workflow" button on the Actions tab, or edit `agent/RUN` and push. If `agent/RUN` starts with `dry-run`, the check-in is printed in the log but not published.
 - **Locally, without saving:** start Ollama, `ollama pull qwen2.5:14b`, then `node agent/coach.mjs --dry-run`
-- **Tests:** `node --test agent/coach.test.mjs` runs the loop, the guardrails, the fallback and the shape of the Ollama and Claude requests against scripted fakes, with no network. The workflow runs them before every check-in.
+- **Tests:** `COACH_DATE=2026-11-20 node --test agent/coach.test.mjs` runs the loop, the guardrails, the fallback and the shape of the Ollama and Claude requests against scripted fakes, with no network. The workflow runs them before every check-in.
 
 Re-running in the same week replaces that week's check-in. The last 30 are kept.
