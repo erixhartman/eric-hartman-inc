@@ -2,23 +2,23 @@
   "updates": [
     {
       "weekOf": "2026-11-16",
-      "date": "2026-11-20",
-      "createdAt": "2026-11-20T19:33:06.764Z",
+      "date": "2026-11-22",
+      "createdAt": "2026-11-23T04:10:13.345Z",
       "model": "qwen2.5:14b",
-      "headline": "One run this week, 149 pages read.",
+      "headline": "Solid week with three runs and good reading progress.",
       "running": {
-        "status": "minor",
-        "note": "1 run this week; 1 run short of the 2-run goal. Aim for 2 runs next week."
+        "status": "good",
+        "note": "3 runs this week, 7.2 km; aim for 3 runs next week with a longest run of 15 minutes."
       },
       "reading": {
         "status": "minor",
-        "note": "149 pages this week; 86 short of the 235 needed. Aim for 280 pages next week to catch up."
+        "note": "178 pages this week; 296 pages needed next week to catch up on the reading goal."
       },
-      "message": "Keep building up your running time and catch up on reading. Next week, aim for 2 runs with a 15-minute longest run and 280 pages.",
+      "message": "Keep up the good work, Eric. Next week, aim for three runs and a longer run of 15 minutes. For reading, push for 296 pages to catch up.",
       "targets": {
-        "runs": 2,
+        "runs": 3,
         "longestRunMinutes": 15,
-        "pages": 280
+        "pages": 296
       },
       "adjusted": []
     }
