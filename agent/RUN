@@ -1,1 +1,2 @@
-run 2026-11-23T04:04:28Z: rerun after the test fix
+Change this file and push to run the Sunday coach on demand. Start it with "dry-run" to print the check-in without publishing.
+Last poke: 2026-11-23T04:05:00Z
