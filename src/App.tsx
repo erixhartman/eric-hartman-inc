@@ -44,6 +44,7 @@ export default function App() {
 
   return (
     <>
+      <a className="skip" href="#top" onClick={(e) => { e.preventDefault(); document.getElementById('top')?.focus() }}>Skip to content</a>
       <header className="site-header">
         <div className="signbar">
           <a className="brand" href="#top">
@@ -60,7 +61,7 @@ export default function App() {
           </nav>
         </div>
       </header>
-      <main className="shell" id="top">
+      <main className="shell" id="top" tabIndex={-1}>
         {error && <p className="empty">{error}</p>}
         {!data && !error && <p className="empty">Loading the arrival boards…</p>}
         {data && (
@@ -195,9 +196,12 @@ function Line1({ data, runs, now, weeks }: { data: Data; runs: Run[]; now: strin
 
       <div className="diagram">
         <ol className="track line-1" aria-label="Training plan stops">
-          <span className="rail" aria-hidden="true" />
-          <span className="rail-done" style={{ '--pos': `${here}%` } as CSSProperties} aria-hidden="true" />
-          <span className="here" style={{ '--pos': `${here}%` } as CSSProperties}>You are here</span>
+          {/* Lists may only hold list items, so the rail and marker sit in items that don't affect layout. */}
+          <li className="deco" aria-hidden="true">
+            <span className="rail" />
+            <span className="rail-done" style={{ '--pos': `${here}%` } as CSSProperties} />
+          </li>
+          <li className="deco"><span className="here" style={{ '--pos': `${here}%` } as CSSProperties}>You are here</span></li>
           {stops.map((s, i) => (
             <Station key={s.what} pos={(i / (stops.length - 1)) * 100} state={stateOf(i)}>
               <strong>{s.when}</strong>
@@ -285,7 +289,7 @@ function Line2({ books, log, stats, weeks }: { books: Book[]; log: ReadingEntry[
 
       <div className="diagram">
         <ol className="track line-2 books-track" aria-label="The book list, finished books first">
-          <span className="rail" aria-hidden="true" />
+          <li className="deco" aria-hidden="true"><span className="rail" /></li>
           {ordered.map((b, i) => (
             <Station key={b.id} pos={(i / (ordered.length - 1)) * 100} state={stateOf(b)} className="book-stop">
               <strong>{b.title}</strong>
