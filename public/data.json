@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-24T13:18:02.864Z",
+  "updatedAt": "2026-11-24T21:25:48.253Z",
   "startDate": "2026-11-18",
   "runs": [
     {
@@ -72,7 +72,7 @@
       "title": "Convenience Store Woman",
       "author": "Sayaka Murata",
       "pages": 172,
-      "page": 41
+      "page": 93
     },
     {
       "id": 8,
@@ -180,6 +180,11 @@
       "date": "2026-11-24",
       "bookId": 7,
       "pages": 40
+    },
+    {
+      "date": "2026-11-24",
+      "bookId": 7,
+      "pages": 52
     }
   ]
 }
