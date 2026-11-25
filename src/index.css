@@ -113,13 +113,9 @@ h1 { margin: 0; font-size: clamp(40px, 5.6vw, 72px); line-height: 1; }
 .station-label strong { font-size: 17px; color: var(--ink); font-weight: 600; }
 .station.ahead .station-label strong { color: var(--ink-2); font-weight: 500; }
 
-.books-track { height: 300px; margin-right: 200px; }
-.book-stop.ahead .stop-detail { display: none; }
+.books-track { height: 64px; margin-inline: 16px; }
 .book-stop { width: auto; }
-.book-stop .station-label { width: max-content; white-space: nowrap; margin: 12px 0 0 14px; transform: rotate(38deg); transform-origin: 0 0; font-size: 14px; }
-.book-stop .station-label strong { font-size: 15px; }
-.book-stop .stop-detail { font-size: 13px; color: var(--muted); }
-.book-stop.done .stop-detail, .book-stop.next .stop-detail { color: var(--l2-ink); font-weight: 500; }
+.book-stop .station-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; }
 
 /* stats */
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule); margin-bottom: 40px; }
@@ -135,15 +131,7 @@ h1 { margin: 0; font-size: clamp(40px, 5.6vw, 72px); line-height: 1; }
 .spark-dot { fill: var(--ink); stroke: #fff; stroke-width: 2; }
 .spark-target { stroke: var(--muted); stroke-dasharray: 3 3; }
 
-/* training phases */
-.phases { list-style: none; margin: 0 0 48px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.phase { padding: 22px; border-radius: 10px; background: var(--panel); }
-.phase.active { background: #fff; box-shadow: inset 0 0 0 2px var(--ink); }
-.phase.future { color: var(--ink-2); }
-.phase-when { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; color: var(--ink-2); }
 .now-tag { color: var(--ink); background: var(--l1); border-radius: 999px; padding: 0 9px; font-weight: 600; }
-.phase-plan { margin: 12px 0 8px; font-size: 20px; font-weight: 600; line-height: 1.25; }
-.phase-status { color: var(--ink-2); font-size: 15px; margin-bottom: 16px; }
 .bar { display: block; height: 8px; border-radius: 999px; background: #e3e3e0; overflow: hidden; }
 .bar > span { display: block; height: 100%; border-radius: 999px; background: var(--ink); }
 .bar.line-1 > span { background: var(--l1); box-shadow: inset 0 0 0 1px var(--l1-ink); }
@@ -262,7 +250,6 @@ input:focus, select:focus { outline: none; border-color: var(--ink); }
 .svc-status.major .svc-mark { background: #ff7a6b; }
 .svc-note { font-size: 16px; line-height: 1.45; color: #ececec; }
 .svc-bottom { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px 40px; margin-top: 20px; align-items: start; }
-.svc-message { margin: 0; font-size: 18px; line-height: 1.5; }
 .svc-targets { display: flex; flex-wrap: wrap; gap: 6px 24px; align-items: baseline; padding: 14px 18px; border-radius: 10px; background: var(--panel); }
 .svc-targets-title { width: 100%; font-size: 14px; font-weight: 600; color: var(--ink-2); }
 .svc-targets strong { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 4px; }
@@ -285,22 +272,25 @@ input:focus, select:focus { outline: none; border-color: var(--ink); }
   .line-head .roundel { width: 40px; height: 40px; font-size: 22px; }
   .line-status { font-size: 16px; }
 
-  .track, .books-track { height: auto; margin: 0; padding: 0 0 0 4px; display: flex; flex-direction: column; gap: 18px; }
+  .track { height: auto; margin: 0; padding: 0 0 0 4px; display: flex; flex-direction: column; gap: 18px; }
   .track .rail { left: 12px; right: auto; top: 6px; bottom: 6px; width: 10px; height: auto; }
   .rail-done { left: 12px; top: 6px; width: 10px; height: var(--pos); }
   .here { left: auto; right: 0; top: var(--pos); transform: translateY(-50%); }
-  .station, .book-stop { position: relative; left: auto; transform: none; width: auto; flex-direction: row; align-items: flex-start; gap: 14px; }
-  .book-stop.ahead .stop-detail { display: inline; }
+  .station { position: relative; left: auto; transform: none; width: auto; flex-direction: row; align-items: flex-start; gap: 14px; }
   .stop { margin-top: 0; width: 26px; height: 26px; border-width: 4px; flex: none; }
-  .station-label, .book-stop .station-label { margin: 0; width: auto; min-width: 0; transform: none; white-space: normal; }
+  .station-label { margin: 0; width: auto; min-width: 0; transform: none; white-space: normal; }
   .track.line-1 { padding-right: 110px; }
+  /* The book line stays horizontal on phones: twelve small dots */
+  .track.books-track { display: block; height: 22px; margin: 0 8px; padding: 0; }
+  .books-track .rail { left: 0; right: 0; top: 4px; bottom: auto; width: auto; height: 6px; }
+  .station.book-stop { position: absolute; left: var(--pos); transform: translateX(-7px); }
+  .book-stop .stop { width: 14px; height: 14px; border-width: 3px; }
 
   .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .stat { padding: 16px 10px 18px 0; }
   .stat + .stat { padding-left: 10px; }
   .stat strong { font-size: 28px; }
   .stat > span { font-size: 13px; line-height: 1.35; margin-top: 6px; }
-  .phases { grid-template-columns: 1fr; }
   .book { grid-template-columns: 34px 1fr; gap: 6px 14px; }
   .book-progress { grid-column: 2; }
   .hide-s { display: none; }

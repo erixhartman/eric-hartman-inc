@@ -62,7 +62,6 @@ export function ServiceUpdate({ updates }: { updates: CoachUpdate[] }) {
       </div>
 
       <div className="svc-bottom">
-        {latest.message && <p className="svc-message">{latest.message}</p>}
         <div className="svc-targets" aria-label={`Targets for the week of ${fmtDate(nextWeek)}`}>
           <span className="svc-targets-title">Targets, week of {fmtDate(nextWeek)}</span>
           <span><strong>{latest.targets.runs}</strong> runs</span>

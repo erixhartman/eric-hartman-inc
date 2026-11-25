@@ -219,18 +219,6 @@ function Line1({ data, runs, now, weeks }: { data: Data; runs: Run[]; now: strin
           spark={<Spark values={weeks.map((w) => w.km)} label={`Kilometres per week over ${range}: ${weeks.map((w) => w.km.toFixed(0)).join(', ')}`} />} />
       </div>
 
-      <ol className="phases">
-        {phases.map((p, i) => (
-          <li key={p.key} className={`phase ${p.active ? 'active' : ''} ${p.future ? 'future' : ''}`}>
-            <div className="phase-when">Phase {i + 1}: {p.when}{p.active && <span className="now-tag">Now</span>}</div>
-            <div className="phase-plan">{p.plan}</div>
-            <div className="phase-status">{p.status}</div>
-            <div className="bar line-1" role="img" aria-label={`${Math.round(p.done * 100)}% complete`}>
-              <span style={{ width: `${p.done * 100}%` }} />
-            </div>
-          </li>
-        ))}
-      </ol>
 
       <div className="log">
         <h3>Run log{runs.length > 0 && <span className="log-count"> {runs.length} run{runs.length === 1 ? '' : 's'}</span>}</h3>
@@ -265,9 +253,9 @@ function Line1({ data, runs, now, weeks }: { data: Data; runs: Run[]; now: strin
 // ---------- Line 2: the book list ----------
 function readingSummary(stats: ReturnType<typeof readingStats>) {
   const onPace = stats.actualPerDay >= stats.needPerDay
-  if (stats.read === 0) return `Nothing read yet. Arriving on time means about ${Math.ceil(stats.needPerDay)} pages a day until Opening Day.`
-  if (stats.daysIn < 7) return `${stats.read.toLocaleString('en-CA')} pages read so far. Arriving on time means about ${Math.ceil(stats.needPerDay)} pages a day until Opening Day.`
-  return `Reading ${stats.actualPerDay.toFixed(0)} pages a day against the ${Math.ceil(stats.needPerDay)} needed. ${onPace ? 'On pace.' : 'Behind pace.'}`
+  if (stats.read === 0) return 'Nothing read yet.'
+  if (stats.daysIn < 7) return `${stats.read.toLocaleString('en-CA')} pages read so far.`
+  return `Reading ${stats.actualPerDay.toFixed(0)} pages a day. ${onPace ? 'On pace.' : 'Behind pace.'}`
 }
 
 function Line2({ books, log, stats, weeks }: { books: Book[]; log: ReadingEntry[]; stats: ReturnType<typeof readingStats>; weeks: ReturnType<typeof weeklyTotals> }) {
