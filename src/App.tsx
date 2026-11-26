@@ -6,6 +6,7 @@ import {
 import { Admin } from './Admin'
 import { ServiceUpdate, type CoachUpdate } from './Coach'
 import { ActivityStrip, SeasonGrid, Spark } from './Momentum'
+import { Analytics } from '@vercel/analytics/react'
 
 // Visual reference: a Toronto subway line diagram. Line 1 (yellow) is the half
 // marathon, Line 2 (green) is the book list. Stops passed are filled in.
@@ -83,6 +84,7 @@ export default function App() {
           </p>
         </div>
       </footer>
+      <Analytics />
     </>
   )
 }
