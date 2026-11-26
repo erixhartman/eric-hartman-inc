@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-26T14:39:29.599Z",
+  "updatedAt": "2026-11-26T22:09:20.583Z",
   "startDate": "2026-11-18",
   "runs": [
     {
@@ -58,7 +58,7 @@
       "title": "The Yiddish Policemen's Union",
       "author": "Michael Chabon",
       "pages": 418,
-      "page": 20
+      "page": 34
     },
     {
       "id": 4,
@@ -214,6 +214,11 @@
       "date": "2026-11-26",
       "bookId": 3,
       "pages": 19
+    },
+    {
+      "date": "2026-11-26",
+      "bookId": 3,
+      "pages": 14
     }
   ]
 }
